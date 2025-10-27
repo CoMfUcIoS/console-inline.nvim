@@ -28,4 +28,4 @@ jobs:
       - name: Install Selene
         run: cargo install selene --locked
       - name: Run Selene
-        run: selene --config selene.toml
+        run: selene lua --config selene.toml
