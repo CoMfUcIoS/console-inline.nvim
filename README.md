@@ -1,5 +1,8 @@
 # console-inline.nvim
 
+![CI](https://github.com/comfucios/console-inline.nvim/actions/workflows/ci.yml/badge.svg)
+![Lint](https://github.com/comfucios/console-inline.nvim/actions/workflows/lint.yml/badge.svg)
+
 Zero-config Neovim plugin that shows `console.log/info/warn/error` inline as virtual text at the emitting source line.
 Includes a Node `--require` shim and optional browser shim.
 
