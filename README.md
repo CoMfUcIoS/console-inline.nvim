@@ -7,7 +7,7 @@ Includes a Node `--require` shim and optional browser shim.
 
 ```lua
 {
-  "yourname/console-inline.nvim",
+  "comfucios/console-inline.nvim",
   version = "*",
   event = "VimEnter",
   opts = {},
