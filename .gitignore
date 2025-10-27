@@ -1,0 +1,38 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Node / npm
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-lock.yaml
+package-lock.json
+
+# Build / dist / coverage
+dist/
+build/
+coverage/
+.nyc_output/
+
+# Editor / tooling
+.vscode/
+.idea/
+*.iml
+
+# Env files
+.env
+.env.*
+!.env.example
+
+# Neovim / Lua
+.luaunit/
+luac.out
+
+# Logs
+*.log
+
+# Cache
+.cache/
+.tmp/

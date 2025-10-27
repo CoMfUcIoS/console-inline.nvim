@@ -1,0 +1,15 @@
+{
+  "bootstrap-sha": "",
+  "last-release-sha": "",
+  "plugins": ["node-workspace"],
+  "packages": {
+    ".": {
+      "release-type": "simple",
+      "component": "console-inline.nvim"
+    },
+    "npm/package": {
+      "release-type": "node",
+      "component": "@console-inline/shim"
+    }
+  }
+}

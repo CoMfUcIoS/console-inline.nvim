@@ -1,0 +1,48 @@
+---
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+jobs:
+  lua:
+    name: Lua / Neovim smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Neovim
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y neovim
+      - name: Smoke test (require plugin and render minimal message)
+        run: |
+          nvim --version
+          nvim --headless -u NONE +"lua <<'LUA'\
+          package.path = './lua/?.lua;./lua/?/init.lua;' .. package.path\
+          local ok, mod = pcall(require, 'console_inline')\
+          if not ok then\
+            print('Failed to require console_inline: ' .. tostring(mod))\
+            os.exit(1)\
+          end\
+          require('console_inline').setup({})\
+          local render = require('console_inline.render')\
+          local fname = 'tmp_ci.lua'\
+          local f = io.open(fname, 'w'); f:write('-- ci'); f:close()\
+          vim.cmd('edit ' .. fname)\
+          render.render_message({ file = vim.fn.fnamemodify(fname, ':p'), line = 1, kind = 'log', args = {'ok'} })\
+          os.remove(fname)\
+          os.exit(0)\
+          LUA"
+  node:
+    name: Node / Vitest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install deps
+        run: npm ci
+      - name: Run tests
+        run: npm test --silent
