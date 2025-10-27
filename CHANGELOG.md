@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0](https://github.com/CoMfUcIoS/console-inline.nvim/compare/console-inline.nvim-v0.3.0...console-inline.nvim-v0.4.0) (2025-10-27)
+
+
+### Features
+
+* **ci:** update npm publish workflow for service package ([b3c82a6](https://github.com/CoMfUcIoS/console-inline.nvim/commit/b3c82a6093dcf623535faddfc05809be1eea1825))
+
+
+### Documentation
+
+* **readme:** clarify usage and config for service ([cc43676](https://github.com/CoMfUcIoS/console-inline.nvim/commit/cc43676c4b14af2b627cc8ba599efd5ef6f9b6fd))
+
 ## [0.3.0](https://github.com/CoMfUcIoS/console-inline.nvim/compare/console-inline.nvim-v0.2.0...console-inline.nvim-v0.3.0) (2025-10-27)
 
 
