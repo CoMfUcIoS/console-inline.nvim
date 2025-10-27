@@ -4,6 +4,8 @@ std = "lua51"
 globals = ["vim"]
 
 [lints]
-# We'll allow global 'vim' provided by Neovim runtime
 global_usage = "allow"
+unscoped_variables = "allow"
+# We'll allow global 'vim' provided by Neovim runtime
+undefined_variable = "allow"
 
