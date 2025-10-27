@@ -1,0 +1,31 @@
+---
+name: Lint
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  luacheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Lua & Luarocks
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lua5.4 luarocks
+      - name: Install luacheck
+        run: |
+          sudo luarocks install luacheck
+      - name: Run luacheck
+        run: |
+          luacheck lua plugin --globals vim --std lua54
+  selene:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust (for Selene)
+        uses: dtolnay/rust-toolchain@stable
+      - name: Install Selene
+        run: cargo install selene --locked
+      - name: Run Selene
+        run: selene --config selene.toml
