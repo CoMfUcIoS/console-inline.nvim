@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/CoMfUcIoS/console-inline.nvim/compare/@console-inline/service-v1.0.0...@console-inline/service-v1.0.1) (2025-10-27)
+
+
+### Documentation
+
+* **readme:** clarify usage and config for service ([cc43676](https://github.com/CoMfUcIoS/console-inline.nvim/commit/cc43676c4b14af2b627cc8ba599efd5ef6f9b6fd))
+
 ## 1.0.0 (2025-10-27)
 
 
