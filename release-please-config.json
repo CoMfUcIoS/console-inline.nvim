@@ -11,5 +11,13 @@
       "release-type": "node",
       "component": "@console-inline/shim"
     }
-  }
+  },
+  "pull-request-title-pattern": "chore(${branch}): release ${component} v${version}",
+  "changelog-sections": [
+    { "type": "feat", "section": "Features" },
+    { "type": "fix", "section": "Bug Fixes" },
+    { "type": "chore", "section": "Maintenance" },
+    { "type": "docs", "section": "Documentation" }
+  ],
+  "labels": ["autorelease", "release-please"]
 }
