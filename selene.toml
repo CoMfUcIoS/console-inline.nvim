@@ -1,10 +1,9 @@
+
+[config]
 std = "lua51"
+globals = ["vim"]
 
 [lints]
 # We'll allow global 'vim' provided by Neovim runtime
 global_usage = "allow"
-
-[[language.globals]]
-name = "vim"
-readonly = false
 
