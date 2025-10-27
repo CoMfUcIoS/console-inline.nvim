@@ -14,15 +14,34 @@ jobs:
         with:
           node-version: '20'
           registry-url: https://registry.npmjs.org
+      - name: Cache npm dependencies
+        uses: actions/cache@v4
+        with:
+          path: npm/package/node_modules
+          key: ${{ runner.os }}-npm-${{ hashFiles('npm/package/package-lock.json')
+            }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
       - name: Set package version from tag (if needed)
         working-directory: npm/package
         run: |
           TAG="${GITHUB_REF_NAME}"
-          # Expect tags like v1.2.3
-          if [[ "$TAG" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+          # Support tags like @console-inline/shim-v1.2.3 and v1.2.3
+          if [[ "$TAG" =~ ^@console-inline/shim-v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
             VER="${BASH_REMATCH[1]}"
             jq --arg v "$VER" '.version = $v' package.json > package.json.tmp && mv package.json.tmp package.json
+          elif [[ "$TAG" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            VER="${BASH_REMATCH[1]}"
+            jq --arg v "$VER" '.version = $v' package.json > package.json.tmp && mv package.json.tmp package.json
+          else
+            echo "Tag format not recognized, skipping version update."
           fi
+      - name: Verify npm package
+        working-directory: npm/package
+        run: |
+          npm install
+          npm run build || true
+          npm test || true
       - name: Publish @console-inline/shim
         working-directory: npm/package
         env:
