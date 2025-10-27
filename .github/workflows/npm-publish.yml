@@ -1,10 +1,11 @@
 ---
-name: Publish npm package
+name: Publish Service Package
 on:
   release:
     types: [published]
 jobs:
   publish-service:
+    if: startsWith(github.event.release.tag_name, '@console-inline/service')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -14,16 +15,15 @@ jobs:
         with:
           node-version: '20'
           registry-url: https://registry.npmjs.org
-      - name: Publish packages/service
+          cache: npm
+      - name: Install dependencies
+        working-directory: packages/service
+        run: npm install
+      - name: Build package
+        working-directory: packages/service
+        run: npm run build
+      - name: Publish to npm
+        working-directory: packages/service
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |-
-          pkg="packages/service"
-          if [ -f "$pkg/package.json" ]; then
-            echo "Publishing $pkg"
-            cd "$pkg"
-            npm install
-            npm run build || true
-            npm publish --access public || true
-          else
-            echo "Package $pkg not found"
+        run: npm publish --access public

@@ -142,3 +142,10 @@ npm run dev
 ```
 
 Open `main.ts` in Neovim and the plugin will render logs sourced from the page.
+
+## Publishing
+
+Tagged releases following the pattern `@console-inline/service-v*` trigger the
+GitHub Actions workflow that installs, builds, and publishes
+`@console-inline/service` to npm. Double-check the package version in
+`packages/service/package.json` before cutting a release.
