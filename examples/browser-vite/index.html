@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>console-inline Browser Demo</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        padding: 2rem;
+        background: #0f172a;
+        color: #e2e8f0;
+      }
+      main {
+        max-width: 48rem;
+        margin: 0 auto;
+      }
+      code {
+        background: rgba(148, 163, 184, 0.15);
+        padding: 0.15rem 0.4rem;
+        border-radius: 0.4rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>console-inline Browser Demo</h1>
+      <p>
+        This page imports <code>@console-inline/service</code> to stream browser
+        console output back into Neovim. Keep your editor pointed at
+        <code>examples/browser-vite/main.ts</code>, run this app with
+        <code>npm run dev</code>, and watch logs appear inline.
+      </p>
+      <p id="status">Sending test messages…</p>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

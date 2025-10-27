@@ -7,9 +7,9 @@
       "release-type": "simple",
       "component": "console-inline.nvim"
     },
-    "npm/package": {
+    "packages/service": {
       "release-type": "node",
-      "component": "@console-inline/shim"
+      "component": "@console-inline/service"
     }
   },
   "pull-request-title-pattern": "chore(${branch}): release ${component} v${version}",

@@ -1,0 +1,12 @@
+{
+  "name": "console-inline-node-demo",
+  "private": true,
+  "type": "module",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "dependencies": {
+    "@console-inline/service": "file:../../packages/service"
+  }
+}
