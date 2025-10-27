@@ -1,5 +1,6 @@
 local state = require("console_inline.state")
 local compat = require("console_inline.compat")
+local log = require("console_inline.log")
 
 local M = {}
 
@@ -59,26 +60,30 @@ end
 
 function M.render_message(msg)
 	if not (msg and msg.file and msg.line) then
+		log.debug("render_message: missing file/line", msg)
 		return
 	end
 	local buf = require("console_inline.buf").find_buf_by_path(msg.file)
 	if not buf then
+		log.debug("render_message: buffer not found for", msg.file)
 		if state.opts.open_missing_files then
 			buf = require("console_inline.buf").ensure_buffer(msg.file)
+			log.debug("render_message: opened missing file", msg.file)
 		else
-            -- Queue the message for later rendering when buffer is loaded
-            state.queued_messages_by_file[msg.file] = state.queued_messages_by_file[msg.file] or {}
-            table.insert(state.queued_messages_by_file[msg.file], msg)
-            return
+			log.debug("render_message: queueing message for", msg.file)
+			state.queued_messages_by_file[msg.file] = state.queued_messages_by_file[msg.file] or {}
+			table.insert(state.queued_messages_by_file[msg.file], msg)
+			return
 		end
 	end
-    if not vim.api.nvim_buf_is_loaded(buf) then
-        -- Queue the message for later rendering when buffer is loaded
-        state.queued_messages_by_file[msg.file] = state.queued_messages_by_file[msg.file] or {}
-        table.insert(state.queued_messages_by_file[msg.file], msg)
-        return
+	if not vim.api.nvim_buf_is_loaded(buf) then
+		log.debug("render_message: buffer not loaded for", msg.file)
+		state.queued_messages_by_file[msg.file] = state.queued_messages_by_file[msg.file] or {}
+		table.insert(state.queued_messages_by_file[msg.file], msg)
+		return
 	end
-	if not state.opts.severity_filter[msg.kind or "log"] then
+	if state.opts.severity_filter and not state.opts.severity_filter[msg.kind or "log"] then
+		log.debug("render_message: severity filtered", msg.kind)
 		return
 	end
 
@@ -86,6 +91,7 @@ function M.render_message(msg)
 	local payload = stringify_args(msg.args)
 	local text = icon .. " " .. truncate(payload, state.opts.max_len)
 	local line0 = math.max(0, (msg.line or 1) - 1)
+	log.debug(string.format("set_line_text: buf=%s line=%d text=%s hl=%s", tostring(buf), line0, text, hl))
 	set_line_text(buf, line0, text, hl)
 end
 

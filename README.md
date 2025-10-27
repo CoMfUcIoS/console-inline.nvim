@@ -36,7 +36,30 @@ See [CHANGELOG.md](CHANGELOG.md) for release history.
 ![Lint](https://github.com/comfucios/console-inline.nvim/actions/workflows/lint.yml/badge.svg)
 
 Zero-config Neovim plugin that shows `console.log/info/warn/error` inline as virtual text at the emitting source line.
-Includes a Node `--require` shim and optional browser shim.
+
+## Zero-config Usage (Recommended)
+
+### Node.js
+
+Just import the service package at the top of your entry file:
+
+```js
+import "@console-inline/service";
+console.log("Hello from Node!");
+```
+
+### Browser/React (Vite, Next.js, etc)
+
+Import the service package in your main entry file:
+
+```js
+import "@console-inline/service";
+console.log("Hello from browser!");
+```
+
+All console output will be sent to Neovim as virtual text automatically. No manual relay setup required.
+
+---
 
 ## Features
 
@@ -45,18 +68,16 @@ Includes a Node `--require` shim and optional browser shim.
 - No configuration required for basic usage
 - Supports persistent logs and queued messages
 - Customizable severity filtering, throttling, and output length
-- Provides CLI and shims for Node and browser environments
+- Ships `@console-inline/service` for Node and browser runtimes
 - Example projects for Node and browser (Vite)
 
 ## File Structure
 
 - `plugin/console-inline.lua`: Neovim plugin entry point
 - `lua/console_inline/`: Lua modules for state, server, rendering, commands
-- `shim/node/console-inline-shim.cjs`: Node.js CommonJS shim
-- `shim/browser/console-inline-shim.mjs`: Browser shim
-- `tools/ws-relay.cjs`: WebSocket relay for browser logs
 - `examples/`: Example Node and browser projects
-- `tests/`: Lua and Node.js tests
+- `tests/`: Lua specs (Plenary/Busted style)
+- `shim/node/console-inline-shim.cjs`: optional legacy CommonJS shim for manual injection
 
 ## Install (Lazy.nvim)
 
@@ -69,15 +90,11 @@ Includes a Node `--require` shim and optional browser shim.
 }
 ```
 
-## Run with Node
-
-```bash
-npx @console-inline/shim node app.js
-# or
-NODE_OPTIONS="--require /path/to/console-inline.nvim/shim/node/console-inline-shim.js" node app.js
-```
-
 ## Commands
+
+- `:ConsoleInlineToggle` — Start or stop the console-inline server.
+- `:ConsoleInlineClear` — Clear all inline console output from the current buffer.
+- `:ConsoleInlineCopy` — Copy the inline console output from the current line.
 
 ## Options
 
@@ -89,38 +106,37 @@ require('console_inline').setup({
   throttle_ms = 30,
   max_len = 160,
   severity_filter = { log = true, info = true, warn = true, error = true },
+  replay_persisted_logs = false,
+  suppress_css_color_conflicts = true,
 })
 ```
 
-## CommonJS shim usage (when your project uses ESM)
+- `host` / `port` — TCP endpoint the Neovim side listens on.
+- `open_missing_files` — automatically `:edit` files that are not yet loaded when a message arrives.
+- `severity_filter` — per-level switches for `log`/`info`/`warn`/`error` rendering.
+- `throttle_ms` — minimum delay between virtual text updates for the same buffer+line.
+- `max_len` — truncate serialized arguments to this many characters (adds ellipsis if exceeded).
+- `autostart` — start the TCP server on `VimEnter` (default `true`); set `false` to manage it manually.
+- `replay_persisted_logs` — when `true`, replays entries from the JSON log file on `BufReadPost`.
+- `suppress_css_color_conflicts` — disable known `css-color` style autocommands that crash when virtual text is replayed.
 
-If your project has `"type": "module"` or uses ESM, use the **CJS shim** with `NODE_OPTIONS`:
+### Service environment variables
+
+`@console-inline/service` (and its in-process relay) respond to a few optional environment variables:
+
+- `CONSOLE_INLINE_WS_RECONNECT_MS` — delay between WebSocket reconnect attempts (default `1000`).
+- `CONSOLE_INLINE_MAX_QUEUE` — max messages to buffer while the TCP server is offline (default `200`; oldest entries are dropped first).
+- `CONSOLE_INLINE_DEBUG` — enable verbose logging in both the service and relay for troubleshooting.
+
+## Browser Demo
+
+See `examples/browser-vite` for a barebones Vite app that simply imports
+`@console-inline/service` and emits a few `console.*` calls. Run it with:
 
 ```bash
-NODE_OPTIONS="--require /absolute/path/to/console-inline.nvim/shim/node/console-inline-shim.cjs" node app.js
+cd examples/browser-vite
+npm install
+npm run dev
 ```
 
-Or via the CLI (auto-uses CJS shim internally):
-
-```bash
-npx @console-inline/shim node app.js
-```
-
-## Browser (dev) via WebSocket relay
-
-The Neovim plugin listens on TCP; for browser logs, run a tiny WS→TCP relay:
-
-```bash
-# in project root
-node tools/ws-relay.cjs
-# WebSocket listens on ws://127.0.0.1:36124 and forwards to TCP 127.0.0.1:36123
-```
-
-Then import the browser shim (e.g., in Vite):
-
-```ts
-// main.ts
-import "../../shim/browser/console-inline-shim.mjs";
-```
-
-Optionally configure env vars:
+Open `main.ts` in Neovim and the plugin will render logs sourced from the page.

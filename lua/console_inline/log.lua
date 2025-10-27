@@ -1,0 +1,62 @@
+local M = {}
+
+local function to_boolean(value)
+	if value == nil then
+		return nil
+	end
+	if type(value) == "boolean" then
+		return value
+	end
+	if type(value) == "number" then
+		return value ~= 0
+	end
+	if type(value) == "string" then
+		local lower = value:lower()
+		if lower == "" or lower == "0" or lower == "false" or lower == "off" then
+			return false
+		end
+		return true
+	end
+	return true
+end
+
+local function compute_debug_enabled()
+	if vim.g.console_inline_debug ~= nil then
+		return to_boolean(vim.g.console_inline_debug)
+	end
+	local env = vim.env.CONSOLE_INLINE_DEBUG or vim.env.CONSOLE_INLINE_DEBUG_NVIM
+	if env ~= nil then
+		return to_boolean(env)
+	end
+	return false
+end
+
+local function stringify(value)
+	if type(value) == "string" then
+		return value
+	end
+	if vim.inspect then
+		return vim.inspect(value)
+	end
+	return tostring(value)
+end
+
+function M.is_debug_enabled()
+	return compute_debug_enabled()
+end
+
+function M.debug(...)
+	if not M.is_debug_enabled() then
+		return
+	end
+	local parts = {}
+	for i = 1, select("#", ...) do
+		parts[#parts + 1] = stringify(select(i, ...))
+	end
+	local message = table.concat(parts, " ")
+	vim.schedule(function()
+		vim.api.nvim_echo({ { "[console-inline] " .. message, "Comment" } }, false, {})
+	end)
+end
+
+return M
