@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0](https://github.com/CoMfUcIoS/console-inline.nvim/compare/console-inline.nvim-v0.2.0...console-inline.nvim-v0.3.0) (2025-10-27)
+
+
+### Features
+
+* migrate to service package and update usage docs ([6ce50eb](https://github.com/CoMfUcIoS/console-inline.nvim/commit/6ce50eb09f0677df517f1a4c0f45d55efc64798c))
+* persist and restore logs across buffer reloads ([ce2299e](https://github.com/CoMfUcIoS/console-inline.nvim/commit/ce2299eab4b074c26404b9a2587bf213fc9c0fda))
+
+
+### Documentation
+
+* **readme:** add screenshot for console-inline usage ([439a04e](https://github.com/CoMfUcIoS/console-inline.nvim/commit/439a04eba01874290860bba2305e923bbf62b4f5))
+
 ## [0.2.0](https://github.com/CoMfUcIoS/console-inline.nvim/compare/console-inline.nvim-v0.1.0...console-inline.nvim-v0.2.0) (2025-10-27)
 
 
