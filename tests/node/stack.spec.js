@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 
 function parse(frame) {
-  const m = frame.match(/(?:at\s+.*\()?(.+?):(\d+):(\d+)\)?/);
+  const m = frame.match(/(?:at\s+.*\()?([^\s()]+):(\d+):(\d+)\)?/);
   return m ? { file: m[1], line: +m[2], col: +m[3] } : null;
 }
 

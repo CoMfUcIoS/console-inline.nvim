@@ -18,22 +18,11 @@ jobs:
       - name: Smoke test (require plugin and render minimal message)
         run: |
           nvim --version
-          nvim --headless -u NONE +"lua <<'LUA'\
-          package.path = './lua/?.lua;./lua/?/init.lua;' .. package.path\
-          local ok, mod = pcall(require, 'console_inline')\
-          if not ok then\
-            print('Failed to require console_inline: ' .. tostring(mod))\
-            os.exit(1)\
-          end\
-          require('console_inline').setup({})\
-          local render = require('console_inline.render')\
-          local fname = 'tmp_ci.lua'\
-          local f = io.open(fname, 'w'); f:write('-- ci'); f:close()\
-          vim.cmd('edit ' .. fname)\
-          render.render_message({ file = vim.fn.fnamemodify(fname, ':p'), line = 1, kind = 'log', args = {'ok'} })\
-          os.remove(fname)\
-          os.exit(0)\
-          LUA"
+          nvim --headless -u NONE -c "lua package.path = './lua/?.lua;./lua/?/init.lua;' .. package.path" \
+            -c "lua local ok, mod = pcall(require, 'console_inline'); if not ok then print('Failed to require console_inline: ' .. tostring(mod)); os.exit(1) end" \
+            -c "lua require('console_inline').setup({})" \
+            -c "lua local render = require('console_inline.render'); local fname = 'tmp_ci.lua'; local f = io.open(fname, 'w'); f:write('-- ci'); f:close(); vim.cmd('edit ' .. fname); render.render_message({ file = vim.fn.fnamemodify(fname, ':p'), line = 1, kind = 'log', args = {'ok'} }); os.remove(fname)" \
+            -c "q"
   node:
     name: Node / Vitest
     runs-on: ubuntu-latest
