@@ -37,6 +37,8 @@ See [CHANGELOG.md](CHANGELOG.md) for release history.
 
 Zero-config Neovim plugin that shows `console.log/info/warn/error` inline as virtual text at the emitting source line.
 
+![console-inline screenshot](images/screenshot.png)
+
 ## Zero-config Usage (Recommended)
 
 ### Node.js
