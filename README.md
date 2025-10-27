@@ -1,10 +1,62 @@
 # console-inline.nvim
 
+## Requirements
+
+- Neovim 0.8+
+- Node.js (for shims and relay)
+- Mac, Linux, or Windows
+
+## Testing
+
+- Node.js: `npm install && npm test` (uses Vitest)
+- Lua: Run tests in `tests/lua` with your preferred Lua test runner
+
+## Contribution
+
+Pull requests and issues are welcome! Please:
+
+- Follow the coding style and conventions
+- Add tests for new features or bug fixes
+- Run linting (`.luacheckrc`, `selene.toml`) before submitting
+
+## Advanced Usage
+
+- Customize plugin options in your Neovim config
+- Use environment variables to change TCP/WS ports
+- See example projects in `examples/` for integration patterns
+
+## License
+
+MIT License. See LICENSE for details.
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for release history.
 ![CI](https://github.com/comfucios/console-inline.nvim/actions/workflows/ci.yml/badge.svg)
 ![Lint](https://github.com/comfucios/console-inline.nvim/actions/workflows/lint.yml/badge.svg)
 
 Zero-config Neovim plugin that shows `console.log/info/warn/error` inline as virtual text at the emitting source line.
 Includes a Node `--require` shim and optional browser shim.
+
+## Features
+
+- Inline display of `console.log`, `console.info`, `console.warn`, and `console.error` output directly at the source line in Neovim
+- Works with Node.js, browser (via WebSocket relay), and ESM/CJS projects
+- No configuration required for basic usage
+- Supports persistent logs and queued messages
+- Customizable severity filtering, throttling, and output length
+- Provides CLI and shims for Node and browser environments
+- Example projects for Node and browser (Vite)
+
+## File Structure
+
+- `plugin/console-inline.lua`: Neovim plugin entry point
+- `lua/console_inline/`: Lua modules for state, server, rendering, commands
+- `shim/node/console-inline-shim.cjs`: Node.js CommonJS shim
+- `shim/browser/console-inline-shim.mjs`: Browser shim
+- `tools/ws-relay.cjs`: WebSocket relay for browser logs
+- `examples/`: Example Node and browser projects
+- `tests/`: Lua and Node.js tests
 
 ## Install (Lazy.nvim)
 
@@ -26,10 +78,6 @@ NODE_OPTIONS="--require /path/to/console-inline.nvim/shim/node/console-inline-sh
 ```
 
 ## Commands
-
-- `:ConsoleInlineToggle` — start/stop server
-- `:ConsoleInlineClear` — clear current buffer inline output
-- `:ConsoleInlineCopy` — copy latest inline text on the cursor line
 
 ## Options
 
@@ -76,6 +124,3 @@ import "../../shim/browser/console-inline-shim.mjs";
 ```
 
 Optionally configure env vars:
-
-- `CONSOLE_INLINE_PORT` (TCP, Neovim) default `36123`
-- `CONSOLE_INLINE_WS_PORT` (WS relay) default `36124`

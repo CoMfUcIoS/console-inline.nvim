@@ -13,6 +13,7 @@ local M = {
 	},
 	extmarks_by_buf_line = {},
 	last_msg_by_buf_line = {},
+    queued_messages_by_file = {},
 }
 
 return M

@@ -15,8 +15,9 @@ local function canon(p)
 	-- strip file://
 	p = p:gsub("^file://", "")
 	-- realpath if possible
-	local rp = (vim.loop and vim.loop.fs_realpath) and vim.loop.fs_realpath(p) or p
-	return vim.fn.fnamemodify(rp, ":p")
+    local rp = (vim.loop and vim.loop.fs_realpath) and vim.loop.fs_realpath(p) or p
+    rp = rp or p
+    return vim.fn.fnamemodify(rp, ":p")
 end
 
 function M.find_buf_by_path(path)

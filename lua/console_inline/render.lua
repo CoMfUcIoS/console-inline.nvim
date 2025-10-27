@@ -66,11 +66,17 @@ function M.render_message(msg)
 		if state.opts.open_missing_files then
 			buf = require("console_inline.buf").ensure_buffer(msg.file)
 		else
-			return
+            -- Queue the message for later rendering when buffer is loaded
+            state.queued_messages_by_file[msg.file] = state.queued_messages_by_file[msg.file] or {}
+            table.insert(state.queued_messages_by_file[msg.file], msg)
+            return
 		end
 	end
-	if not vim.api.nvim_buf_is_loaded(buf) then
-		return
+    if not vim.api.nvim_buf_is_loaded(buf) then
+        -- Queue the message for later rendering when buffer is loaded
+        state.queued_messages_by_file[msg.file] = state.queued_messages_by_file[msg.file] or {}
+        table.insert(state.queued_messages_by_file[msg.file], msg)
+        return
 	end
 	if not state.opts.severity_filter[msg.kind or "log"] then
 		return

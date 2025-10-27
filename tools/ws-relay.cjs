@@ -16,6 +16,13 @@ wss.on("connection", (socket) => {
   socket.on("message", (data) => {
     try {
       client.write(String(data) + "\n");
+      // Persist log to file
+      try {
+        const fs = require("fs");
+        fs.appendFileSync("console-inline.log", String(data) + "\n");
+      } catch (e) {
+        // Ignore file write errors
+      }
     } catch {}
   });
   socket.on("close", () => client.destroy());
