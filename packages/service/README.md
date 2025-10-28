@@ -25,6 +25,7 @@ import "@console-inline/service";
 
 console.log("Hello from Node!");
 console.warn({ status: "demo" });
+console.info("info");
 ```
 
 ### Browser / React
@@ -37,6 +38,7 @@ import "@console-inline/service";
 
 console.info("Rendered from the browser");
 console.warn({ status: "demo" });
+console.log("log");
 ```
 
 In Node runtimes the package connects directly to the Neovim TCP endpoint; browser runtimes rely on the auto-started relay managed by the Neovim plugin. No extra scripts required.
