@@ -61,3 +61,14 @@ import executes.
 - If you change the plugin’s host/port, mirror the same values as environment variables
   before starting your Node/Vite app.
 - Use `CONSOLE_INLINE_DEBUG=1` to print connection attempts, retries, and queue drops.
+
+```mermaid
+flowchart TD
+    A[Start Node/Vite/Browser App] --> B{Connect to Neovim Plugin?}
+    B -- Yes --> F[Messages forwarded to Neovim and displayed inline]
+    B -- No --> C[Retry and queue messages]
+    C --> D[Check Neovim plugin loaded and listening - :ConsoleInlineStatus]
+    D --> E[Verify host/port configuration]
+    E --> G[Enable debug logging - CONSOLE_INLINE_DEBUG=1]
+    G --> B
+```
