@@ -5,7 +5,7 @@ on:
     types: [published]
 jobs:
   publish-service:
-    if: startsWith(github.event.release.tag_name, '@console-inline/service')
+    if: startsWith(github.event.release.tag_name, 'packages/service-v') || startsWith(github.event.release.tag_name, '@console-inline/service-v')
     runs-on: ubuntu-latest
     permissions:
       contents: read
