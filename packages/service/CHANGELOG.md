@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/CoMfUcIoS/console-inline.nvim/compare/@console-inline/service-v1.1.1...@console-inline/service-v1.2.0) (2025-10-28)
+
+
+### Features
+
+* **docs:** add demo status warning in browser example ([0d3a945](https://github.com/CoMfUcIoS/console-inline.nvim/commit/0d3a94507ec793ce952220fca3b1bc527ff780db))
+
 ## [1.1.1](https://github.com/CoMfUcIoS/console-inline.nvim/compare/@console-inline/service-v1.1.0...@console-inline/service-v1.1.1) (2025-10-28)
 
 

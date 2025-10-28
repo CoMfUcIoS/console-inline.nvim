@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.0](https://github.com/CoMfUcIoS/console-inline.nvim/compare/console-inline.nvim-v0.6.0...console-inline.nvim-v0.7.0) (2025-10-28)
+
+
+### Features
+
+* **docs:** add demo status warning in browser example ([0d3a945](https://github.com/CoMfUcIoS/console-inline.nvim/commit/0d3a94507ec793ce952220fca3b1bc527ff780db))
+
 ## [0.6.0](https://github.com/CoMfUcIoS/console-inline.nvim/compare/console-inline.nvim-v0.5.1...console-inline.nvim-v0.6.0) (2025-10-28)
 
 
