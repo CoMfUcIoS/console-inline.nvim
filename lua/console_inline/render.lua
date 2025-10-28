@@ -4,6 +4,13 @@ local log = require("console_inline.log")
 
 local M = {}
 
+local function is_remote_path(path)
+	if type(path) ~= "string" then
+		return false
+	end
+	return path:match("^%a[%w%+%-%.]*://") ~= nil
+end
+
 local function stringify_args(args)
 	local ok, s = pcall(vim.json.encode, args)
 	if not ok or type(s) ~= "string" then
@@ -39,6 +46,49 @@ local function severity_icon(kind)
 	return "●", (kind == "info" and "DiagnosticInfo" or "NonText")
 end
 
+local function clamp_line(buf, line0)
+	if type(line0) ~= "number" then
+		return 0
+	end
+	line0 = math.max(0, math.floor(line0))
+	local count = vim.api.nvim_buf_line_count(buf)
+	if count <= 0 then
+		return 0
+	end
+	if line0 >= count then
+		return count - 1
+	end
+	return line0
+end
+
+local function has_console(buf, line0)
+	local line = vim.api.nvim_buf_get_lines(buf, line0, line0 + 1, false)[1]
+	if not line then
+		return false
+	end
+	return line:match("console%.") ~= nil
+end
+
+local function adjust_line(buf, line0)
+	if has_console(buf, line0) then
+		return line0
+	end
+	local max = vim.api.nvim_buf_line_count(buf)
+	for offset = 1, 6 do
+		local down = line0 + offset
+		if down < max and has_console(buf, down) then
+			return down
+		end
+	end
+	for offset = 1, 3 do
+		local up = line0 - offset
+		if up >= 0 and has_console(buf, up) then
+			return up
+		end
+	end
+	return line0
+end
+
 local function set_line_text(buf, line0, text, hl)
 	state.extmarks_by_buf_line[buf] = state.extmarks_by_buf_line[buf] or {}
 	state.last_msg_by_buf_line[buf] = state.last_msg_by_buf_line[buf] or {}
@@ -63,16 +113,27 @@ function M.render_message(msg)
 		log.debug("render_message: missing file/line", msg)
 		return
 	end
-	local buf = require("console_inline.buf").find_buf_by_path(msg.file)
+	local remote = is_remote_path(msg.file)
+	if remote then
+		log.debug("render_message: remote path", msg.file)
+	end
+
+	local buf_module = require("console_inline.buf")
+	local buf = buf_module.find_buf_by_path(msg.file)
 	if not buf then
 		log.debug("render_message: buffer not found for", msg.file)
-		if state.opts.open_missing_files then
-			buf = require("console_inline.buf").ensure_buffer(msg.file)
+		if state.opts.open_missing_files and not remote then
+			buf = buf_module.ensure_buffer(msg.file)
 			log.debug("render_message: opened missing file", msg.file)
 		else
+			if remote then
+				log.debug("render_message: skipping queue for remote path", msg.file)
+				return
+			end
 			log.debug("render_message: queueing message for", msg.file)
-			state.queued_messages_by_file[msg.file] = state.queued_messages_by_file[msg.file] or {}
-			table.insert(state.queued_messages_by_file[msg.file], msg)
+			local key = buf_module.canon(msg.file)
+			state.queued_messages_by_file[key] = state.queued_messages_by_file[key] or {}
+			table.insert(state.queued_messages_by_file[key], msg)
 			return
 		end
 	end
@@ -90,7 +151,8 @@ function M.render_message(msg)
 	local icon, hl = severity_icon(msg.kind)
 	local payload = stringify_args(msg.args)
 	local text = icon .. " " .. truncate(payload, state.opts.max_len)
-	local line0 = math.max(0, (msg.line or 1) - 1)
+	local line0 = clamp_line(buf, (msg.line or 1) - 1)
+	line0 = adjust_line(buf, line0)
 	log.debug(string.format("set_line_text: buf=%s line=%d text=%s hl=%s", tostring(buf), line0, text, hl))
 	set_line_text(buf, line0, text, hl)
 end

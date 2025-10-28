@@ -37,7 +37,8 @@ See [CHANGELOG.md](CHANGELOG.md) for release history.
 
 Zero-config Neovim plugin that shows `console.log/info/warn/error` inline as virtual text at the emitting source line.
 
-![console-inline screenshot](images/screenshot.png)
+![Browser demo with virtual text](images/screenshot-browser.png)
+![Node demo with virtual text](images/screenshot-node.png)
 
 ## Zero-config Usage (Recommended)
 
@@ -70,7 +71,7 @@ All console output will be sent to Neovim as virtual text automatically. No manu
 - No configuration required for basic usage
 - Supports persistent logs and queued messages
 - Customizable severity filtering, throttling, and output length
-- Ships `@console-inline/service` for Node and browser runtimes
+- Ships `@console-inline/service` for Node and browser runtimes and auto-starts the local relay
 - Example projects for Node and browser (Vite)
 
 ## File Structure
@@ -108,6 +109,7 @@ require('console_inline').setup({
   throttle_ms = 30,
   max_len = 160,
   severity_filter = { log = true, info = true, warn = true, error = true },
+  autostart_relay = true,
   replay_persisted_logs = false,
   suppress_css_color_conflicts = true,
 })
@@ -119,6 +121,7 @@ require('console_inline').setup({
 - `throttle_ms` — minimum delay between virtual text updates for the same buffer+line.
 - `max_len` — truncate serialized arguments to this many characters (adds ellipsis if exceeded).
 - `autostart` — start the TCP server on `VimEnter` (default `true`); set `false` to manage it manually.
+- `autostart_relay` — spawn a Node-based WebSocket→TCP relay so browser runtimes work without extra setup (default `true`).
 - `replay_persisted_logs` — when `true`, replays entries from the JSON log file on `BufReadPost`.
 - `suppress_css_color_conflicts` — disable known `css-color` style autocommands that crash when virtual text is replayed.
 
@@ -132,6 +135,8 @@ require('console_inline').setup({
 
 ## Browser Demo
 
+`npm run build:relay` — regenerate the auto-relay bundle used by Neovim when autostarting the relay.
+
 See `examples/browser-vite` for a barebones Vite app that simply imports
 `@console-inline/service` and emits a few `console.*` calls. Run it with:
 
@@ -142,6 +147,9 @@ npm run dev
 ```
 
 Open `main.ts` in Neovim and the plugin will render logs sourced from the page.
+
+Before running the browser demo for the first time, run `npm run build:relay` to regenerate the bundled relay used by the Neovim plugin.
+Note: Node runtimes connect directly to the Neovim TCP server; browsers rely on the auto-started relay. Ensure the plugin is listening before importing the service.
 
 ## Publishing
 

@@ -1,0 +1,9 @@
+---
+repos:
+  - repo: local
+    hooks:
+      - id: build-relay
+        name: Build console-inline relay bundle
+        entry: npm run build:relay
+        language: system
+        pass_filenames: false
