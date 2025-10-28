@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/CoMfUcIoS/console-inline.nvim/compare/@console-inline/service-v1.0.1...@console-inline/service-v1.1.0) (2025-10-28)
+
+
+### Features
+
+* browser relay, screenshots, and doc updates ([ba2d563](https://github.com/CoMfUcIoS/console-inline.nvim/commit/ba2d5639842539ab36deb52981b31b10450a151c))
+
 ## [1.0.1](https://github.com/CoMfUcIoS/console-inline.nvim/compare/@console-inline/service-v1.0.0...@console-inline/service-v1.0.1) (2025-10-27)
 
 
