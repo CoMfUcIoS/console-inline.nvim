@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1](https://github.com/CoMfUcIoS/console-inline.nvim/compare/@console-inline/service-v1.2.0...@console-inline/service-v1.2.1) (2025-10-28)
+
+
+### Documentation
+
+* update usage examples and release token config ([3e622e1](https://github.com/CoMfUcIoS/console-inline.nvim/commit/3e622e18330226f58a964774ccccf86088cd592c))
+
 ## [1.2.0](https://github.com/CoMfUcIoS/console-inline.nvim/compare/@console-inline/service-v1.1.1...@console-inline/service-v1.2.0) (2025-10-28)
 
 

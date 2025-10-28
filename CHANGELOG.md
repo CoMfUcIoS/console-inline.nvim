@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.1](https://github.com/CoMfUcIoS/console-inline.nvim/compare/console-inline.nvim-v0.7.0...console-inline.nvim-v0.7.1) (2025-10-28)
+
+
+### Bug Fixes
+
+* **ci:** allow comfucios to trigger auto-merge workflow ([6ee344a](https://github.com/CoMfUcIoS/console-inline.nvim/commit/6ee344a87a34698fc9bea0c69f752e9a21c83527))
+
+
+### Documentation
+
+* update usage examples and release token config ([3e622e1](https://github.com/CoMfUcIoS/console-inline.nvim/commit/3e622e18330226f58a964774ccccf86088cd592c))
+
 ## [0.7.0](https://github.com/CoMfUcIoS/console-inline.nvim/compare/console-inline.nvim-v0.6.0...console-inline.nvim-v0.7.0) (2025-10-28)
 
 
