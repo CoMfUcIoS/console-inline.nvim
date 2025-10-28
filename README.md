@@ -19,6 +19,17 @@ Pull requests and issues are welcome! Please:
 - Add tests for new features or bug fixes
 - Run linting (`.luacheckrc`, `selene.toml`) before submitting
 
+### Developer setup
+
+To keep the auto-relay bundle in sync before every commit, install the project hooks once:
+
+```bash
+pip install pre-commit  # or `brew install pre-commit`
+pre-commit install
+```
+
+This registers the `build-relay` hook which runs `npm run build:relay` automatically. You can still regenerate it manually via that script or `:ConsoleInlineRelayBuild`.
+
 ## Advanced Usage
 
 - Customize plugin options in your Neovim config
