@@ -12,12 +12,24 @@
       "component": "@console-inline/service"
     }
   },
-  "pull-request-title-pattern": "chore(${branch}): release ${component} v${version}",
+  "pull-request-title-pattern": "chore${scope}: release ${component} v${version}",
   "changelog-sections": [
-    { "type": "feat", "section": "Features" },
-    { "type": "fix", "section": "Bug Fixes" },
-    { "type": "chore", "section": "Maintenance" },
-    { "type": "docs", "section": "Documentation" }
+    {
+      "type": "feat",
+      "section": "Features"
+    },
+    {
+      "type": "fix",
+      "section": "Bug Fixes"
+    },
+    {
+      "type": "chore",
+      "section": "Maintenance"
+    },
+    {
+      "type": "docs",
+      "section": "Documentation"
+    }
   ],
   "labels": ["autorelease", "release-please"]
 }

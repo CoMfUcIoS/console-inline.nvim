@@ -2,6 +2,7 @@ local state = require("console_inline.state")
 local server = require("console_inline.server")
 local render = require("console_inline.render")
 local log = require("console_inline.log")
+local buf_utils = require("console_inline.buf")
 
 local css_color_events = {
 	CursorMoved = true,
@@ -61,7 +62,8 @@ local function suppress_css_color(buf)
 end
 
 local function flush_queued_messages(fname)
-	local queued = state.queued_messages_by_file[fname]
+	local key = buf_utils.canon(fname)
+	local queued = state.queued_messages_by_file[key]
 	if not queued or #queued == 0 then
 		return
 	end
@@ -70,7 +72,7 @@ local function flush_queued_messages(fname)
 		log.debug("Rendering queued message", msg)
 		render.render_message(msg)
 	end
-	state.queued_messages_by_file[fname] = nil
+	state.queued_messages_by_file[key] = nil
 end
 
 local M = {}
