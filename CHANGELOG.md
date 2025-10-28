@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.1](https://github.com/CoMfUcIoS/console-inline.nvim/compare/console-inline.nvim-v0.5.0...console-inline.nvim-v0.5.1) (2025-10-28)
+
+
+### Documentation
+
+* **readme:** add mermaid diagram for plugin flow ([9f549c7](https://github.com/CoMfUcIoS/console-inline.nvim/commit/9f549c7b8daf63aa0f3c2b811e096f0803d0f28d))
+
 ## [0.5.0](https://github.com/CoMfUcIoS/console-inline.nvim/compare/console-inline.nvim-v0.4.0...console-inline.nvim-v0.5.0) (2025-10-28)
 
 
