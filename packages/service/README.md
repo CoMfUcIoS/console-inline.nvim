@@ -36,6 +36,7 @@ For browsers, the Neovim plugin auto-starts the bundled relay (`:ConsoleInlineRe
 import "@console-inline/service";
 
 console.info("Rendered from the browser");
+console.warn({ status: "demo" });
 ```
 
 In Node runtimes the package connects directly to the Neovim TCP endpoint; browser runtimes rely on the auto-started relay managed by the Neovim plugin. No extra scripts required.
