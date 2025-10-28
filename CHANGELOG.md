@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.0](https://github.com/CoMfUcIoS/console-inline.nvim/compare/console-inline.nvim-v0.5.1...console-inline.nvim-v0.6.0) (2025-10-28)
+
+
+### Features
+
+* **ci:** add manual trigger to npm publish workflow ([53601f6](https://github.com/CoMfUcIoS/console-inline.nvim/commit/53601f675c065b1fb8fe60d1a00c41d4d178047f))
+
 ## [0.5.1](https://github.com/CoMfUcIoS/console-inline.nvim/compare/console-inline.nvim-v0.5.0...console-inline.nvim-v0.5.1) (2025-10-28)
 
 
