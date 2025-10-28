@@ -29,6 +29,8 @@ console.warn({ status: "demo" });
 
 ### Browser / React
 
+For browsers, the Neovim plugin auto-starts the bundled relay (`:ConsoleInlineRelayBuild` / `npm run build:relay`).
+
 ```ts
 // e.g. in src/main.tsx
 import "@console-inline/service";
@@ -36,20 +38,19 @@ import "@console-inline/service";
 console.info("Rendered from the browser");
 ```
 
-The package spins up an in-process WebSocket relay and keeps trying to connect to the
-Neovim TCP endpoint until successful—no extra scripts required.
+In Node runtimes the package connects directly to the Neovim TCP endpoint; browser runtimes rely on the auto-started relay managed by the Neovim plugin. No extra scripts required.
 
 ## Configuration
 
 Environment variables let you point the relay at a different host/port or tweak behaviour:
 
-| Variable | Default | Description |
-| --- | --- | --- |
-| `CONSOLE_INLINE_HOST` | `127.0.0.1` | Hostname of the Neovim TCP server |
-| `CONSOLE_INLINE_PORT` | `36123` | TCP port exposed by `console-inline.nvim` |
-| `CONSOLE_INLINE_WS_RECONNECT_MS` | `1000` | Delay between WebSocket reconnect attempts |
-| `CONSOLE_INLINE_MAX_QUEUE` | `200` | Maximum buffered messages while Neovim is offline |
-| `CONSOLE_INLINE_DEBUG` | off | Enables verbose logging for troubleshooting |
+| Variable                         | Default     | Description                                       |
+| -------------------------------- | ----------- | ------------------------------------------------- |
+| `CONSOLE_INLINE_HOST`            | `127.0.0.1` | Hostname of the Neovim TCP server                 |
+| `CONSOLE_INLINE_PORT`            | `36123`     | TCP port exposed by `console-inline.nvim`         |
+| `CONSOLE_INLINE_WS_RECONNECT_MS` | `1000`      | Delay between WebSocket reconnect attempts        |
+| `CONSOLE_INLINE_MAX_QUEUE`       | `200`       | Maximum buffered messages while Neovim is offline |
+| `CONSOLE_INLINE_DEBUG`           | off         | Enables verbose logging for troubleshooting       |
 
 Set these in your shell (`export`) or via `process.env` / `import.meta.env` before the first
 import executes.

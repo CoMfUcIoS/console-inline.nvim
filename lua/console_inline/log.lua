@@ -20,14 +20,23 @@ local function to_boolean(value)
 	return true
 end
 
+local cached
 local function compute_debug_enabled()
+	if cached ~= nil then
+		return cached
+	end
 	if vim.g.console_inline_debug ~= nil then
-		return to_boolean(vim.g.console_inline_debug)
+		cached = to_boolean(vim.g.console_inline_debug)
+		return cached
 	end
-	local env = vim.env.CONSOLE_INLINE_DEBUG or vim.env.CONSOLE_INLINE_DEBUG_NVIM
-	if env ~= nil then
-		return to_boolean(env)
+	local ok_env, env = pcall(function()
+		return vim.env.CONSOLE_INLINE_DEBUG or vim.env.CONSOLE_INLINE_DEBUG_NVIM
+	end)
+	if ok_env and env ~= nil then
+		cached = to_boolean(env)
+		return cached
 	end
+	cached = false
 	return false
 end
 

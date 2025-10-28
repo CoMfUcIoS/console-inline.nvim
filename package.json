@@ -3,9 +3,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "build:relay": "esbuild packages/service/src/relay-server.ts --bundle --platform=node --format=cjs --outfile=relay/auto-relay.cjs"
   },
   "devDependencies": {
     "vitest": "^4.0.4"
   }
 }
+

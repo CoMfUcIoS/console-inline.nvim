@@ -1,6 +1,7 @@
 local uv = vim.loop
 local state = require("console_inline.state")
 local render = require("console_inline.render")
+local relay = require("console_inline.relay")
 
 local M = {}
 
@@ -49,6 +50,7 @@ function M.start()
 	end
 	start_tcp()
 	state.running = true
+	relay.ensure()
 	vim.notify(string.format("console-inline: listening on %s:%d", state.opts.host, state.opts.port))
 end
 
@@ -56,6 +58,7 @@ function M.stop()
 	if not state.running then
 		return
 	end
+	state.running = false
 	if state.server then
 		pcall(state.server.close, state.server)
 		state.server = nil
@@ -64,7 +67,7 @@ function M.stop()
 		pcall(s.close, s)
 	end
 	state.sockets = {}
-	state.running = false
+	relay.stop()
 	vim.notify("console-inline: stopped")
 end
 
