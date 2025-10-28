@@ -135,8 +135,6 @@ require('console_inline').setup({
 
 ## Browser Demo
 
-`npm run build:relay` — regenerate the auto-relay bundle used by Neovim when autostarting the relay.
-
 See `examples/browser-vite` for a barebones Vite app that simply imports
 `@console-inline/service` and emits a few `console.*` calls. Run it with:
 
@@ -148,8 +146,7 @@ npm run dev
 
 Open `main.ts` in Neovim and the plugin will render logs sourced from the page.
 
-Before running the browser demo for the first time, run `npm run build:relay` to regenerate the bundled relay used by the Neovim plugin.
-Note: Node runtimes connect directly to the Neovim TCP server; browsers rely on the auto-started relay. Ensure the plugin is listening before importing the service.
+Before running the browser demo for the first time, run `npm run build:relay` to regenerate the bundled relay used by the Neovim plugin. Note: Node runtimes connect directly to the Neovim TCP server; browsers rely on the auto-started relay. Ensure the plugin is listening before importing the service.
 
 ## Publishing
 
