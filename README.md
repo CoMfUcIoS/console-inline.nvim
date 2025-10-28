@@ -1,48 +1,5 @@
 # console-inline.nvim
 
-## Requirements
-
-- Neovim 0.8+
-- Node.js (for shims and relay)
-- Mac, Linux, or Windows
-
-## Testing
-
-- Node.js: `npm install && npm test` (uses Vitest)
-- Lua: Run tests in `tests/lua` with your preferred Lua test runner
-
-## Contribution
-
-Pull requests and issues are welcome! Please:
-
-- Follow the coding style and conventions
-- Add tests for new features or bug fixes
-- Run linting (`.luacheckrc`, `selene.toml`) before submitting
-
-### Developer setup
-
-To keep the auto-relay bundle in sync before every commit, install the project hooks once:
-
-```bash
-pip install pre-commit  # or `brew install pre-commit`
-pre-commit install
-```
-
-This registers the `build-relay` hook which runs `npm run build:relay` automatically. You can still regenerate it manually via that script or `:ConsoleInlineRelayBuild`.
-
-## Advanced Usage
-
-- Customize plugin options in your Neovim config
-- Use environment variables to change TCP/WS ports
-- See example projects in `examples/` for integration patterns
-
-## License
-
-MIT License. See LICENSE for details.
-
-## Changelog
-
-See [CHANGELOG.md](CHANGELOG.md) for release history.
 ![CI](https://github.com/comfucios/console-inline.nvim/actions/workflows/ci.yml/badge.svg)
 ![Lint](https://github.com/comfucios/console-inline.nvim/actions/workflows/lint.yml/badge.svg)
 
@@ -144,6 +101,44 @@ require('console_inline').setup({
 - `CONSOLE_INLINE_MAX_QUEUE` — max messages to buffer while the TCP server is offline (default `200`; oldest entries are dropped first).
 - `CONSOLE_INLINE_DEBUG` — enable verbose logging in both the service and relay for troubleshooting.
 
+## Advanced Usage
+
+- Customize plugin options in your Neovim config
+- Use environment variables to change TCP/WS ports
+- See example projects in `examples/` for integration patterns
+
+# Development
+
+## Requirements
+
+- Neovim 0.8+
+- Node.js (for shims and relay)
+- Mac, Linux, or Windows
+
+## Testing
+
+- Node.js: `npm install && npm test` (uses Vitest)
+- Lua: Run tests in `tests/lua` with your preferred Lua test runner
+
+## Contribution
+
+Pull requests and issues are welcome! Please:
+
+- Follow the coding style and conventions
+- Add tests for new features or bug fixes
+- Run linting (`.luacheckrc`, `selene.toml`) before submitting
+
+### Developer setup
+
+To keep the auto-relay bundle in sync before every commit, install the project hooks once:
+
+```bash
+pip install pre-commit  # or `brew install pre-commit`
+pre-commit install
+```
+
+This registers the `build-relay` hook which runs `npm run build:relay` automatically. You can still regenerate it manually via that script or `:ConsoleInlineRelayBuild`.
+
 ## Browser Demo
 
 See `examples/browser-vite` for a barebones Vite app that simply imports
@@ -165,3 +160,11 @@ Tagged releases following the pattern `@console-inline/service-v*` trigger the
 GitHub Actions workflow that installs, builds, and publishes
 `@console-inline/service` to npm. Double-check the package version in
 `packages/service/package.json` before cutting a release.
+
+## License
+
+MIT License. See LICENSE for details.
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for release history.

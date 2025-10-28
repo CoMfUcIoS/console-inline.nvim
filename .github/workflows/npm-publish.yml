@@ -3,10 +3,15 @@ name: Publish Service Package
 on:
   release:
     types: [published]
+  push:
+    tags:
+      - "@console-inline/service-v*"
   workflow_dispatch: {}
 jobs:
   publish-service:
-    if: startsWith(github.event.release.tag_name, 'packages/service-v') || startsWith(github.event.release.tag_name, '@console-inline/service-v')
+    if: >
+      (github.event_name == 'release' && (startsWith(github.event.release.tag_name, 'packages/service-v') || startsWith(github.event.release.tag_name, '@console-inline/service-v'))) ||
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/@console-inline/service-v'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
