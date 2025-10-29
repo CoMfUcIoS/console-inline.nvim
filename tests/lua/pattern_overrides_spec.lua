@@ -67,6 +67,20 @@ describe("pattern overrides", function()
 		assert.are.equal("📝", entry.icon)
 	end)
 
+	it("respects disabled pattern overrides", function()
+		local buf = vim.api.nvim_get_current_buf()
+		local file = vim.api.nvim_buf_get_name(buf)
+		if file == "" then
+			file = vim.fn.tempname()
+			vim.api.nvim_buf_set_name(buf, file)
+		end
+		state.opts.pattern_overrides = false
+		render.render_message({ file = file, line = 1, kind = "log", args = { "TODO: disabled" } })
+		local entry = state.last_msg_by_buf_line[buf] and state.last_msg_by_buf_line[buf][0]
+		assert.is_truthy(entry)
+		assert.are.equal("●", entry.icon)
+	end)
+
 	it("supports plain string matches", function()
 		local buf = vim.api.nvim_get_current_buf()
 		local file = vim.api.nvim_buf_get_name(buf)
@@ -82,5 +96,22 @@ describe("pattern overrides", function()
 		local entry = state.last_msg_by_buf_line[buf] and state.last_msg_by_buf_line[buf][0]
 		assert.is_truthy(entry)
 		assert.are.equal("✔", entry.icon)
+	end)
+
+	it("honours user ignore_case override", function()
+		local buf = vim.api.nvim_get_current_buf()
+		local file = vim.api.nvim_buf_get_name(buf)
+		if file == "" then
+			file = vim.fn.tempname()
+			vim.api.nvim_buf_set_name(buf, file)
+		end
+		state.opts.pattern_overrides = {
+			{ pattern = "todo", icon = "🧪", highlight = "DiffAdd", plain = true, ignore_case = true },
+		}
+		render.render_message({ file = file, line = 1, kind = "info", args = { "ToDo check" } })
+		local entry = state.last_msg_by_buf_line[buf] and state.last_msg_by_buf_line[buf][0]
+		assert.is_truthy(entry)
+		assert.are.equal("🧪", entry.icon)
+		assert.are.equal("DiffAdd", entry.highlight)
 	end)
 end)

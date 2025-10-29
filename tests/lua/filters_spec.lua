@@ -55,6 +55,19 @@ describe("project filters", function()
 		assert.is_nil(state.last_msg_by_buf_line[buf])
 	end)
 
+	it("filters by message pattern", function()
+		local buf, file = ensure_named_buffer()
+		state.opts.filters = {
+			deny = {
+				messages = { { pattern = "noise", plain = true } },
+			},
+		}
+		render.render_message({ file = file, line = 1, kind = "log", args = { "noise event" } })
+		assert.is_nil(state.last_msg_by_buf_line[buf])
+		render.render_message({ file = file, line = 1, kind = "log", args = { "signal" } })
+		assert.is_truthy(state.last_msg_by_buf_line[buf])
+	end)
+
 	it("adjusts severity per rule", function()
 		local buf, file = ensure_named_buffer()
 		state.opts.filters = {
@@ -68,6 +81,22 @@ describe("project filters", function()
 		render.render_message({ file = file, line = 1, kind = "log", args = { "hidden" } })
 		assert.is_nil(state.last_msg_by_buf_line[buf])
 		render.render_message({ file = file, line = 1, kind = "warn", args = { "visible" } })
+		assert.is_truthy(state.last_msg_by_buf_line[buf])
+	end)
+
+	it("supports severity only lists", function()
+		local buf, file = ensure_named_buffer()
+		state.opts.filters = {
+			severity = {
+				{
+					paths = { file },
+					only = { "error", "warn" },
+				},
+			},
+		}
+		render.render_message({ file = file, line = 1, kind = "log", args = { "suppressed" } })
+		assert.is_nil(state.last_msg_by_buf_line[buf])
+		render.render_message({ file = file, line = 1, kind = "error", args = { "kept" } })
 		assert.is_truthy(state.last_msg_by_buf_line[buf])
 	end)
 end)

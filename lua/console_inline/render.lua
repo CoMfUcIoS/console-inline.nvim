@@ -97,12 +97,14 @@ local function apply_pattern_overrides(payload, icon, hl)
 	if overrides == false then
 		return icon, hl
 	end
-	local matched
-	matched, icon, hl = apply_rules(payload, icon, hl, overrides)
-	if matched then
-		return icon, hl
+	local matched_override, override_icon, override_hl = apply_rules(payload, icon, hl, overrides)
+	if matched_override then
+		return override_icon, override_hl
 	end
-	matched, icon, hl = apply_rules(payload, icon, hl, default_pattern_overrides)
+	local matched_default, default_icon, default_hl = apply_rules(payload, icon, hl, default_pattern_overrides)
+	if matched_default then
+		return default_icon, default_hl
+	end
 	return icon, hl
 end
 
