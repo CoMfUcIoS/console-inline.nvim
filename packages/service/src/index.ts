@@ -67,34 +67,35 @@ const toBool = (value: unknown): boolean | null => {
   if (value === undefined || value === null) {
     return null;
   }
-  if (typeof value === 'boolean') {
+  if (typeof value === "boolean") {
     return value;
   }
-  if (typeof value === 'number') {
+  if (typeof value === "number") {
     if (Number.isNaN(value)) return null;
     return value !== 0;
   }
-  if (typeof value === 'string') {
+  if (typeof value === "string") {
     const trimmed = value.trim().toLowerCase();
     if (!trimmed) return null;
-    if (['true', '1', 'yes', 'on', 'force', 'enabled'].includes(trimmed)) return true;
-    if (['false', '0', 'no', 'off', 'disabled'].includes(trimmed)) return false;
+    if (["true", "1", "yes", "on", "force", "enabled"].includes(trimmed))
+      return true;
+    if (["false", "0", "no", "off", "disabled"].includes(trimmed)) return false;
   }
   return null;
 };
 
 const resolveExplicitToggle = (): boolean | null => {
   const candidates: unknown[] = [];
-  if (typeof process !== 'undefined' && process.env) {
+  if (typeof process !== "undefined" && process.env) {
     candidates.push(process.env.CONSOLE_INLINE_ENABLED);
     candidates.push(process.env.CONSOLE_INLINE_DISABLED);
   }
-  if (typeof import.meta !== 'undefined' && (import.meta as any).env) {
+  if (typeof import.meta !== "undefined" && (import.meta as any).env) {
     const env = (import.meta as any).env;
     candidates.push(env.CONSOLE_INLINE_ENABLED);
     candidates.push(env.CONSOLE_INLINE_DISABLED);
   }
-  if (typeof globalThis !== 'undefined') {
+  if (typeof globalThis !== "undefined") {
     const g = globalThis as Record<string, unknown>;
     candidates.push(g.CONSOLE_INLINE_ENABLED);
     candidates.push(g.CONSOLE_INLINE_DISABLED);
@@ -114,18 +115,22 @@ const determineDevEnvironment = (): boolean => {
     return explicit;
   }
   if (isNode) {
-    const env = typeof process !== 'undefined' && process.env ? process.env.NODE_ENV : undefined;
+    const env =
+      typeof process !== "undefined" && process.env
+        ? process.env.NODE_ENV
+        : undefined;
     if (env) {
-      return env !== 'production';
+      return env !== "production";
     }
   }
   if (isBrowser) {
-    const metaEnv = typeof import.meta !== 'undefined' ? (import.meta as any).env : undefined;
+    const metaEnv =
+      typeof import.meta !== "undefined" ? (import.meta as any).env : undefined;
     if (metaEnv) {
-      if (typeof metaEnv.DEV !== 'undefined') {
+      if (typeof metaEnv.DEV !== "undefined") {
         return !!metaEnv.DEV;
       }
-      if (typeof metaEnv.PROD !== 'undefined') {
+      if (typeof metaEnv.PROD !== "undefined") {
         return !metaEnv.PROD;
       }
     }
@@ -153,7 +158,6 @@ const debugEnabled = (() => {
 })();
 
 const devEnvironment = determineDevEnvironment();
-
 
 const debug = (...args: unknown[]) => {
   if (!debugEnabled) {
