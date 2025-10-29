@@ -8,6 +8,7 @@ Zero-config Neovim plugin that shows `console.log/info/warn/error` inline as vir
 ![Browser demo with virtual text](images/screenshot-browser.png)
 ![Node demo with virtual text](images/screenshot-node.png)
 ![Popup view for long payloads](images/screenshot-popup.png)
+![Console History](images/screenshot-history.png)
 
 ## Zero-config Usage (Recommended)
 
@@ -70,6 +71,7 @@ All console output will be sent to Neovim as virtual text automatically. No manu
 - `:ConsoleInlineClear` — Clear all inline console output from the current buffer.
 - `:ConsoleInlineCopy` — Copy the inline console output from the current line.
 - `:ConsoleInlinePopup` — Open a floating window with formatted output for the message under the cursor.
+- `:ConsoleInlineHistory` — Search recent console output across buffers via Telescope.
 
 ## Options
 
@@ -84,6 +86,7 @@ require('console_inline').setup({
   autostart_relay = true,
   replay_persisted_logs = false,
   suppress_css_color_conflicts = true,
+  history_size = 200,
 })
 ```
 
@@ -96,6 +99,7 @@ require('console_inline').setup({
 - `autostart_relay` — spawn a Node-based WebSocket→TCP relay so browser runtimes work without extra setup (default `true`).
 - `replay_persisted_logs` — when `true`, replays entries from the JSON log file on `BufReadPost`.
 - `suppress_css_color_conflicts` — disable known `css-color` style autocommands that crash when virtual text is replayed.
+- `history_size` — maximum number of console entries retained for the Telescope history picker (`0` or lower keeps everything).
 - `popup_formatter` — optional function(entry) -> lines used for popup formatting; defaults to prettifying JSON via `vim.inspect`.
 
 ### Service environment variables

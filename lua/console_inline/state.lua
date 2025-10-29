@@ -15,6 +15,7 @@ local M = {
 		replay_persisted_logs = false,
 		suppress_css_color_conflicts = true,
 		popup_formatter = nil,
+		history_size = 200,
 	},
 	extmarks_by_buf_line = {},
 	last_msg_by_buf_line = {},
@@ -22,6 +23,7 @@ local M = {
 	relay_handle = nil,
 	relay_stderr = nil,
 	relay_pid = nil,
+	history = {},
 }
 
 return M

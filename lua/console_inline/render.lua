@@ -1,6 +1,7 @@
 local state = require("console_inline.state")
 local compat = require("console_inline.compat")
 local log = require("console_inline.log")
+local history = require("console_inline.history")
 
 local M = {}
 
@@ -114,6 +115,49 @@ function M.render_message(msg)
 		log.debug("render_message: missing file/line", msg)
 		return
 	end
+
+	local kind = msg.kind or "log"
+	if state.opts.severity_filter and not state.opts.severity_filter[kind] then
+		log.debug("render_message: severity filtered", kind)
+		return
+	end
+
+	local icon, hl = severity_icon(kind)
+	local full_payload = stringify_args(msg.args)
+	local display_payload = truncate(full_payload, state.opts.max_len)
+	local history_entry = msg._console_inline_history_entry
+	if not history_entry then
+		history_entry = {
+			file = msg.file,
+			original_line = msg.line,
+			kind = kind,
+			payload = full_payload,
+			display_payload = display_payload,
+			display = icon .. " " .. display_payload,
+			text = icon .. " " .. display_payload,
+			raw_args = msg.args,
+			icon = icon,
+			timestamp = os.time(),
+		}
+		history.record(history_entry)
+		msg._console_inline_history_entry = history_entry
+	else
+		history_entry.file = msg.file
+		history_entry.original_line = msg.line
+		history_entry.kind = kind
+		history_entry.payload = full_payload
+		history_entry.display_payload = display_payload
+		history_entry.display = icon .. " " .. display_payload
+		history_entry.text = icon .. " " .. display_payload
+		history_entry.raw_args = msg.args
+		history_entry.icon = icon
+		if not history_entry.timestamp then
+			history_entry.timestamp = os.time()
+		end
+	end
+	history_entry.count = 1
+	history_entry.render_line = msg.line
+
 	local remote = is_remote_path(msg.file)
 	if remote then
 		log.debug("render_message: remote path", msg.file)
@@ -145,16 +189,11 @@ function M.render_message(msg)
 		table.insert(state.queued_messages_by_file[key], msg)
 		return
 	end
-	if state.opts.severity_filter and not state.opts.severity_filter[msg.kind or "log"] then
-		log.debug("render_message: severity filtered", msg.kind)
-		return
-	end
 
-	local icon, hl = severity_icon(msg.kind)
-	local full_payload = stringify_args(msg.args)
-	local display_payload = truncate(full_payload, state.opts.max_len)
 	local line0 = clamp_line(buf, (msg.line or 1) - 1)
 	line0 = adjust_line(buf, line0)
+	history_entry.render_line = line0 + 1
+	history_entry.buf = buf
 
 	state.last_msg_by_buf_line[buf] = state.last_msg_by_buf_line[buf] or {}
 	local prev = state.last_msg_by_buf_line[buf][line0]
@@ -165,6 +204,10 @@ function M.render_message(msg)
 
 	local prefix = count > 1 and (count .. "x ") or ""
 	local display = icon .. " " .. prefix .. display_payload
+	history_entry.count = count
+	history_entry.display = display
+	history_entry.text = display
+
 	log.debug(
 		string.format("set_line_text: buf=%s line=%d text=%s hl=%s count=%d", tostring(buf), line0, display, hl, count)
 	)
