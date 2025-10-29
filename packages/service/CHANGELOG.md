@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.3.0](https://github.com/CoMfUcIoS/console-inline.nvim/compare/@console-inline/service-v1.2.1...@console-inline/service-v1.3.0) (2025-10-29)
+
+
+### Features
+
+* add env toggles for dev-only activation ([34d1686](https://github.com/CoMfUcIoS/console-inline.nvim/commit/34d168661a3eab74f9a9aa9c9f9f02d068af369c))
+
+
+### Bug Fixes
+
+* improve code style and update service version ([a60c02b](https://github.com/CoMfUcIoS/console-inline.nvim/commit/a60c02bcf247d4580b6d35b659b38915dba45d87))
+
 ## [1.2.1](https://github.com/CoMfUcIoS/console-inline.nvim/compare/@console-inline/service-v1.2.0...@console-inline/service-v1.2.1) (2025-10-28)
 
 
