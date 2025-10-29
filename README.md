@@ -119,14 +119,15 @@ Use `pattern_overrides` to change how specific log lines look or add more rules:
 ```lua
 require('console_inline').setup({
   pattern_overrides = {
-    { pattern = 'TODO', icon = '✅', highlight = 'DiffAdd', plain = true }, -- overrides default
-    { pattern = 'CRITICAL', icon = '💥', highlight = 'ErrorMsg' },         -- extends defaults
+    { pattern = 'TODO', icon = '✅', highlight = 'DiffAdd', plain = true, ignore_case = true }, -- overrides default
+    { pattern = 'CRITICAL', icon = '💥', highlight = 'ErrorMsg' },                             -- extends defaults
   },
 })
 ```
 
 - `pattern` — Lua pattern matched against the full JSON payload string.
 - `plain` — when `true`, performs a plain substring match instead of a Lua pattern.
+- `ignore_case` — when `true`, compares case-insensitively (supported for `plain` matches and simple patterns).
 - `icon` — overrides the virtual text icon.
 - `highlight` — overrides the highlight group applied to the virtual text.
 

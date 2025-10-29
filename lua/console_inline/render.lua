@@ -7,9 +7,9 @@ local filters = require("console_inline.filters")
 local M = {}
 
 local default_pattern_overrides = {
-	{ pattern = "TODO", icon = "📝", highlight = "Todo", plain = true },
-	{ pattern = "FIXME", icon = "🛠", highlight = "WarningMsg", plain = true },
-	{ pattern = "NOTE", icon = "🗒", highlight = "SpecialComment", plain = true },
+	{ pattern = "TODO", icon = "📝", highlight = "Todo", plain = true, ignore_case = true },
+	{ pattern = "FIXME", icon = "🛠", highlight = "WarningMsg", plain = true, ignore_case = true },
+	{ pattern = "NOTE", icon = "🗒", highlight = "SpecialComment", plain = true, ignore_case = true },
 }
 
 local function is_remote_path(path)
@@ -61,7 +61,14 @@ local function matches_pattern(text, rule)
 	end
 	text = tostring(text or "")
 	if rule.plain then
+		if rule.ignore_case then
+			return text:lower():find(pattern:lower(), 1, true) ~= nil
+		end
 		return text:find(pattern, 1, true) ~= nil
+	end
+	if rule.ignore_case then
+		text = text:lower()
+		pattern = pattern:lower()
 	end
 	local ok, start_pos = pcall(string.find, text, pattern)
 	if not ok then
