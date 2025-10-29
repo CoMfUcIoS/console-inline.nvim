@@ -9,6 +9,7 @@ describe("history tracking", function()
 		state.extmarks_by_buf_line = {}
 		state.last_msg_by_buf_line = {}
 		state.queued_messages_by_file = {}
+		state.opts.history_size = 200
 	end)
 
 	it("records messages rendered in the active buffer", function()
@@ -35,5 +36,16 @@ describe("history tracking", function()
 		buf_utils.ensure_buffer(tmpfile)
 		render.render_message(msg)
 		assert.are.equal(1, #history.entries())
+	end)
+
+	it("trims according to history_size", function()
+		state.opts.history_size = 2
+		history.record({ file = "a", icon = "●" })
+		history.record({ file = "b", icon = "●" })
+		history.record({ file = "c", icon = "●" })
+		local entries = history.entries()
+		assert.are.equal(2, #entries)
+		assert.are.equal("c", entries[1].file)
+		assert.are.equal("b", entries[2].file)
 	end)
 end)

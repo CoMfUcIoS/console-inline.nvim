@@ -129,33 +129,30 @@ local function apply_severity_rules(filters, path, payload)
 	for _, rule in ipairs(rules) do
 		if type(rule) == "table" then
 			local path_rules = collect_rules(rule, { "paths", "path", "files", "file" })
-			if #path_rules > 0 and not matches_any(path, path_rules, true) then
-				goto continue
-			end
 			local message_rules = collect_rules(rule, { "messages", "message", "payload", "pattern" })
-			if #message_rules > 0 and not matches_any(payload, message_rules, false) then
-				goto continue
-			end
-			if type(rule.allow) == "table" then
-				for level, value in pairs(rule.allow) do
-					effective[level] = value and true or false
+			local path_ok = (#path_rules == 0) or matches_any(path, path_rules, true)
+			local message_ok = (#message_rules == 0) or matches_any(payload, message_rules, false)
+			if path_ok and message_ok and (#path_rules > 0 or #message_rules > 0) then
+				if type(rule.allow) == "table" then
+					for level, value in pairs(rule.allow) do
+						effective[level] = value and true or false
+					end
 				end
-			end
-			if type(rule.deny) == "table" then
-				for level, value in pairs(rule.deny) do
-					if value then
-						effective[level] = false
+				if type(rule.deny) == "table" then
+					for level, value in pairs(rule.deny) do
+						if value then
+							effective[level] = false
+						end
+					end
+				end
+				local only_list = ensure_list(rule.only)
+				if #only_list > 0 then
+					for _, level in ipairs({ "log", "info", "warn", "error" }) do
+						effective[level] = vim.tbl_contains(only_list, level)
 					end
 				end
 			end
-			local only_list = ensure_list(rule.only)
-			if #only_list > 0 then
-				for _, level in ipairs({ "log", "info", "warn", "error" }) do
-					effective[level] = vim.tbl_contains(only_list, level)
-				end
-			end
 		end
-		::continue::
 	end
 	return effective
 end

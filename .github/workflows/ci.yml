@@ -23,6 +23,17 @@ jobs:
             -c "lua require('console_inline').setup({})" \
             -c "lua local render = require('console_inline.render'); local fname = 'tmp_ci.lua'; local f = io.open(fname, 'w'); f:write('-- ci'); f:close(); vim.cmd('edit ' .. fname); render.render_message({ file = vim.fn.fnamemodify(fname, ':p'), line = 1, kind = 'log', args = {'ok'} }); os.remove(fname)" \
             -c "q"
+      - name: Install Lua test deps
+        run: |
+          mkdir -p .tests/site/pack/deps/start
+          if [ ! -d ".tests/site/pack/deps/start/plenary.nvim" ]; then
+            git clone --depth=1 https://github.com/nvim-lua/plenary.nvim .tests/site/pack/deps/start/plenary.nvim
+          fi
+      - name: Run Lua specs
+        run: |
+          nvim --headless -u tests/minimal_init.lua \
+            -c "lua require('plenary.test_harness').test_directory('./tests/lua', { minimal_init = './tests/minimal_init.lua' })" \
+            -c "qa"
   node:
     name: Node / Vitest
     runs-on: ubuntu-latest
