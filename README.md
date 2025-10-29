@@ -88,6 +88,7 @@ require('console_inline').setup({
   suppress_css_color_conflicts = true,
   history_size = 200,
   pattern_overrides = nil,
+  filters = nil,
 })
 ```
 
@@ -102,6 +103,7 @@ require('console_inline').setup({
 - `suppress_css_color_conflicts` — disable known `css-color` style autocommands that crash when virtual text is replayed.
 - `history_size` — maximum number of console entries retained for the Telescope history picker (`0` or lower keeps everything).
 - `pattern_overrides` — array of `{ pattern, icon?, highlight?, plain? }` rules that customise the rendered icon or highlight when the payload matches (`nil` keeps built-in defaults, `false` disables them).
+- `filters` — configure allow/deny lists and severity overrides for specific paths or payload patterns.
 - `popup_formatter` — optional function(entry) -> lines used for popup formatting; defaults to prettifying JSON via `vim.inspect`.
 
 ### Pattern overrides
@@ -129,6 +131,40 @@ require('console_inline').setup({
 - `highlight` — overrides the highlight group applied to the virtual text.
 
 Set `pattern_overrides = false` to disable all pattern-based styling.
+
+### Project filters
+
+Use `filters` to scope which logs surface and to tune severity per path or payload:
+
+```lua
+require('console_inline').setup({
+  filters = {
+    allow = {
+      paths = { vim.loop.cwd() .. '/apps/**' },
+    },
+    deny = {
+      messages = { { pattern = 'DEBUG', plain = true }, 'trace:' },
+      paths = { '**/node_modules/**' },
+    },
+    severity = {
+      {
+        paths = { '**/services/**' },
+        allow = { log = false, info = true, warn = true, error = true },
+      },
+      {
+        messages = { { pattern = 'SQL', plain = true } },
+        allow = { log = false, info = false, warn = true, error = true },
+      },
+    },
+  },
+})
+```
+
+- `allow` — optional `paths`/`messages` lists (strings, globs, or rule tables) that must match for a log to render.
+- `deny` — optional `paths`/`messages` lists that immediately suppress matched logs.
+- `severity` — ordered rules that override the active severity filter when their `paths`/`messages` match (`allow` sets booleans; `only = { 'warn', 'error' }` keeps just those levels).
+
+Strings under `paths` are treated as file globs (`**` supported). Message entries are plain substrings by default; provide `{ pattern = 'regex' }` for Lua pattern checks or `{ glob = 'glob/**' }` to match filenames explicitly. Set `filters = nil` (default) to keep all logs, or `filters = { deny = { ... } }` to layer selective suppression.
 
 ### Service environment variables
 
