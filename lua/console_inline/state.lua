@@ -17,6 +17,7 @@ local M = {
 		popup_formatter = nil,
 		history_size = 200,
 		pattern_overrides = nil,
+		filters = nil,
 	},
 	extmarks_by_buf_line = {},
 	last_msg_by_buf_line = {},

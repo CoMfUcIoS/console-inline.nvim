@@ -2,6 +2,7 @@ local state = require("console_inline.state")
 local compat = require("console_inline.compat")
 local log = require("console_inline.log")
 local history = require("console_inline.history")
+local filters = require("console_inline.filters")
 
 local M = {}
 
@@ -168,13 +169,17 @@ function M.render_message(msg)
 	end
 
 	local kind = msg.kind or "log"
-	if state.opts.severity_filter and not state.opts.severity_filter[kind] then
-		log.debug("render_message: severity filtered", kind)
+	local full_payload = stringify_args(msg.args)
+	if not filters.should_render(msg, full_payload) then
+		log.debug("render_message: filtered by project rules", msg)
+		return
+	end
+	if not filters.severity_allows(kind, msg, full_payload) then
+		log.debug("render_message: severity filtered by project rules", kind)
 		return
 	end
 
 	local icon, hl = severity_icon(kind)
-	local full_payload = stringify_args(msg.args)
 	local display_payload = truncate(full_payload, state.opts.max_len)
 	icon, hl = apply_pattern_overrides(full_payload, icon, hl)
 	local history_entry = msg._console_inline_history_entry
