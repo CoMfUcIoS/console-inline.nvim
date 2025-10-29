@@ -151,25 +151,27 @@ function M.render_message(msg)
 	end
 
 	local icon, hl = severity_icon(msg.kind)
-	local payload = stringify_args(msg.args)
-	payload = truncate(payload, state.opts.max_len)
+	local full_payload = stringify_args(msg.args)
+	local display_payload = truncate(full_payload, state.opts.max_len)
 	local line0 = clamp_line(buf, (msg.line or 1) - 1)
 	line0 = adjust_line(buf, line0)
 
 	state.last_msg_by_buf_line[buf] = state.last_msg_by_buf_line[buf] or {}
 	local prev = state.last_msg_by_buf_line[buf][line0]
 	local count = 1
-	if prev and type(prev) == "table" and prev.payload == payload and prev.icon == icon then
+	if prev and type(prev) == "table" and prev.payload == full_payload and prev.icon == icon then
 		count = prev.count + 1
 	end
 
 	local prefix = count > 1 and (count .. "x ") or ""
-	local display = icon .. " " .. prefix .. payload
-	log.debug(string.format("set_line_text: buf=%s line=%d text=%s hl=%s count=%d", tostring(buf), line0, display, hl, count))
+	local display = icon .. " " .. prefix .. display_payload
+	log.debug(
+		string.format("set_line_text: buf=%s line=%d text=%s hl=%s count=%d", tostring(buf), line0, display, hl, count)
+	)
 
 	local entry = {
 		text = display,
-		payload = payload,
+		payload = full_payload,
 		icon = icon,
 		count = count,
 	}
@@ -180,6 +182,12 @@ function M.clear_current_buffer()
 	vim.api.nvim_buf_clear_namespace(0, state.ns, 0, -1)
 	state.extmarks_by_buf_line[vim.api.nvim_get_current_buf()] = nil
 	state.last_msg_by_buf_line[vim.api.nvim_get_current_buf()] = nil
+end
+
+function M.get_entry_at_cursor()
+	local buf = vim.api.nvim_get_current_buf()
+	local line0 = vim.api.nvim_win_get_cursor(0)[1] - 1
+	return state.last_msg_by_buf_line[buf] and state.last_msg_by_buf_line[buf][line0]
 end
 
 function M.copy_current_line()

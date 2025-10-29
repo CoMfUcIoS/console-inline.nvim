@@ -103,6 +103,8 @@ require('console_inline').setup({
 
 ## Advanced Usage
 
+- `:ConsoleInlinePopup` — display the full console payload in a floating window for the message under cursor.
+
 - Customize plugin options in your Neovim config
 - Use environment variables to change TCP/WS ports
 - See example projects in `examples/` for integration patterns
