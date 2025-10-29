@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.0](https://github.com/CoMfUcIoS/console-inline.nvim/compare/console-inline.nvim-v1.0.0...console-inline.nvim-v1.1.0) (2025-10-29)
+
+
+### Features
+
+* add project filters for log rendering control ([fb220a2](https://github.com/CoMfUcIoS/console-inline.nvim/commit/fb220a244abfdac09b8487100bf01865ca40acac))
+* **history:** add console output history and Telescope picker ([ba93f80](https://github.com/CoMfUcIoS/console-inline.nvim/commit/ba93f806bd2a6bb0603e7ce4c37b7d56faf9883f))
+* **pattern_overrides:** add ignore_case support ([2a88f8c](https://github.com/CoMfUcIoS/console-inline.nvim/commit/2a88f8c67f27065acf2e556fce16a0b1d0de4b22))
+* **render:** add pattern_overrides for log styling ([b571809](https://github.com/CoMfUcIoS/console-inline.nvim/commit/b571809f6ad2e07a7bb98a464702b7317a525b3a))
+
+
+### Bug Fixes
+
+* **render:** skip remote paths in render_message ([faf3120](https://github.com/CoMfUcIoS/console-inline.nvim/commit/faf312027cdd34b871059e9db77fe9a606d2868e))
+
 ## [1.0.0](https://github.com/CoMfUcIoS/console-inline.nvim/compare/console-inline.nvim-v0.7.1...console-inline.nvim-v1.0.0) (2025-10-29)
 
 
