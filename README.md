@@ -66,6 +66,7 @@ All console output will be sent to Neovim as virtual text automatically. No manu
 - `:ConsoleInlineToggle` — Start or stop the console-inline server.
 - `:ConsoleInlineClear` — Clear all inline console output from the current buffer.
 - `:ConsoleInlineCopy` — Copy the inline console output from the current line.
+- `:ConsoleInlinePopup` — Open a floating window with formatted output for the message under the cursor.
 
 ## Options
 
@@ -92,6 +93,7 @@ require('console_inline').setup({
 - `autostart_relay` — spawn a Node-based WebSocket→TCP relay so browser runtimes work without extra setup (default `true`).
 - `replay_persisted_logs` — when `true`, replays entries from the JSON log file on `BufReadPost`.
 - `suppress_css_color_conflicts` — disable known `css-color` style autocommands that crash when virtual text is replayed.
+- `popup_formatter` — optional function(entry) -> lines used for popup formatting; defaults to prettifying JSON via `vim.inspect`.
 
 ### Service environment variables
 
