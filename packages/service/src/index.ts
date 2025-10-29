@@ -655,3 +655,14 @@ if (devEnvironment) {
 
 // Optionally export API
 export {};
+
+export const __testing__ = {
+  isTruthy,
+  toBool,
+  resolveExplicitToggle,
+  determineDevEnvironment,
+  normalizePath,
+  sanitizeArgs,
+  parseStackFrame,
+  getNumber,
+};

@@ -1,6 +1,6 @@
 /** @type {import('vitest').UserConfig} */
 export default {
   test: {
-    include: ["tests/node/**/*.js"],
+    include: ["tests/node/**/*.js", "packages/service/src/**/*.test.ts"],
   },
 };
