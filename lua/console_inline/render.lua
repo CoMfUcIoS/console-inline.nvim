@@ -188,6 +188,11 @@ function M.render_message(msg)
 		return
 	end
 
+	if is_remote_path(msg.file) then
+		log.debug("render_message: remote path", msg.file)
+		return
+	end
+
 	local icon, hl = severity_icon(kind)
 	local display_payload = truncate(full_payload, state.opts.max_len)
 	icon, hl = apply_pattern_overrides(full_payload, icon, hl)
@@ -226,23 +231,14 @@ function M.render_message(msg)
 	history_entry.count = 1
 	history_entry.render_line = msg.line
 
-	local remote = is_remote_path(msg.file)
-	if remote then
-		log.debug("render_message: remote path", msg.file)
-	end
-
 	local buf_module = require("console_inline.buf")
 	local buf = buf_module.find_buf_by_path(msg.file)
 	if not buf then
 		log.debug("render_message: buffer not found for", msg.file)
-		if state.opts.open_missing_files and not remote then
+		if state.opts.open_missing_files then
 			buf = buf_module.ensure_buffer(msg.file)
 			log.debug("render_message: opened missing file", msg.file)
 		else
-			if remote then
-				log.debug("render_message: skipping queue for remote path", msg.file)
-				return
-			end
 			log.debug("render_message: queueing message for", msg.file)
 			local key = buf_module.canon(msg.file)
 			state.queued_messages_by_file[key] = state.queued_messages_by_file[key] or {}
