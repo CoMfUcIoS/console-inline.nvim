@@ -174,6 +174,7 @@ function M.render_message(msg)
 		payload = full_payload,
 		icon = icon,
 		count = count,
+		raw_args = msg.args,
 	}
 	set_line_text(buf, line0, entry, hl)
 end

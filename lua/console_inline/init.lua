@@ -79,6 +79,9 @@ local M = {}
 
 function M.setup(opts)
 	state.opts = vim.tbl_deep_extend("force", state.opts, opts or {})
+	if type(state.opts.popup_formatter) ~= "function" then
+		state.opts.popup_formatter = require("console_inline.format").default
+	end
 	if vim.g.console_inline_lazy_setup_done then
 		-- allow runtime restarts when autostart enabled
 		if state.opts.autostart ~= false then

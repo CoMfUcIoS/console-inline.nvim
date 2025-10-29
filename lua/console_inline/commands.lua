@@ -33,9 +33,21 @@ return function()
 		end
 		local buf = vim.api.nvim_create_buf(false, true)
 		vim.api.nvim_buf_set_option(buf, "bufhidden", "wipe")
-		local lines = vim.split(entry.payload or entry.text or "", "\n", true)
+		local formatter = state.opts.popup_formatter or require("console_inline.format").default
+		local ok, result = pcall(formatter, entry)
+		local lines = {}
+		if ok and type(result) == "table" then
+			for _, line in ipairs(result) do
+				lines[#lines + 1] = tostring(line)
+			end
+		else
+			lines = vim.split(entry.payload or entry.text or "", "\n", true)
+		end
 		if entry.count and entry.count > 1 then
 			table.insert(lines, 1, string.format("[%dx repeats]", entry.count))
+		end
+		if #lines == 0 then
+			lines = { "<empty>" }
 		end
 		vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
 		local width = 0
