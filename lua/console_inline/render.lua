@@ -89,7 +89,8 @@ local function adjust_line(buf, line0)
 	return line0
 end
 
-local function set_line_text(buf, line0, text, hl)
+local function set_line_text(buf, line0, entry, hl)
+	local text = entry.text
 	state.extmarks_by_buf_line[buf] = state.extmarks_by_buf_line[buf] or {}
 	state.last_msg_by_buf_line[buf] = state.last_msg_by_buf_line[buf] or {}
 	local id = state.extmarks_by_buf_line[buf][line0]
@@ -105,7 +106,7 @@ local function set_line_text(buf, line0, text, hl)
 		id = vim.api.nvim_buf_set_extmark(buf, state.ns, line0, 0, opts)
 		state.extmarks_by_buf_line[buf][line0] = id
 	end
-	state.last_msg_by_buf_line[buf][line0] = text
+	state.last_msg_by_buf_line[buf][line0] = entry
 end
 
 function M.render_message(msg)
@@ -139,8 +140,9 @@ function M.render_message(msg)
 	end
 	if not vim.api.nvim_buf_is_loaded(buf) then
 		log.debug("render_message: buffer not loaded for", msg.file)
-		state.queued_messages_by_file[msg.file] = state.queued_messages_by_file[msg.file] or {}
-		table.insert(state.queued_messages_by_file[msg.file], msg)
+		local key = buf_module.canon(msg.file)
+		state.queued_messages_by_file[key] = state.queued_messages_by_file[key] or {}
+		table.insert(state.queued_messages_by_file[key], msg)
 		return
 	end
 	if state.opts.severity_filter and not state.opts.severity_filter[msg.kind or "log"] then
@@ -150,11 +152,28 @@ function M.render_message(msg)
 
 	local icon, hl = severity_icon(msg.kind)
 	local payload = stringify_args(msg.args)
-	local text = icon .. " " .. truncate(payload, state.opts.max_len)
+	payload = truncate(payload, state.opts.max_len)
 	local line0 = clamp_line(buf, (msg.line or 1) - 1)
 	line0 = adjust_line(buf, line0)
-	log.debug(string.format("set_line_text: buf=%s line=%d text=%s hl=%s", tostring(buf), line0, text, hl))
-	set_line_text(buf, line0, text, hl)
+
+	state.last_msg_by_buf_line[buf] = state.last_msg_by_buf_line[buf] or {}
+	local prev = state.last_msg_by_buf_line[buf][line0]
+	local count = 1
+	if prev and type(prev) == "table" and prev.payload == payload and prev.icon == icon then
+		count = prev.count + 1
+	end
+
+	local prefix = count > 1 and (count .. "x ") or ""
+	local display = icon .. " " .. prefix .. payload
+	log.debug(string.format("set_line_text: buf=%s line=%d text=%s hl=%s count=%d", tostring(buf), line0, display, hl, count))
+
+	local entry = {
+		text = display,
+		payload = payload,
+		icon = icon,
+		count = count,
+	}
+	set_line_text(buf, line0, entry, hl)
 end
 
 function M.clear_current_buffer()
@@ -166,9 +185,10 @@ end
 function M.copy_current_line()
 	local buf = vim.api.nvim_get_current_buf()
 	local line0 = vim.api.nvim_win_get_cursor(0)[1] - 1
-	local t = state.last_msg_by_buf_line[buf] and state.last_msg_by_buf_line[buf][line0]
-	if t then
-		vim.fn.setreg("+", t)
+	local entry = state.last_msg_by_buf_line[buf] and state.last_msg_by_buf_line[buf][line0]
+	local text = entry and (entry.text or entry)
+	if text then
+		vim.fn.setreg("+", text)
 		vim.notify("console-inline: copied to clipboard")
 	else
 		vim.notify("console-inline: nothing to copy", vim.log.levels.WARN)
