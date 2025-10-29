@@ -14,6 +14,7 @@ local M = {
 		autostart_relay = true,
 		replay_persisted_logs = false,
 		suppress_css_color_conflicts = true,
+		popup_formatter = nil,
 	},
 	extmarks_by_buf_line = {},
 	last_msg_by_buf_line = {},

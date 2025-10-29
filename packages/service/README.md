@@ -43,6 +43,8 @@ console.log("log");
 
 In Node runtimes the package connects directly to the Neovim TCP endpoint; browser runtimes rely on the auto-started relay managed by the Neovim plugin. No extra scripts required.
 
+By default the service only patches consoles in development (`NODE_ENV !== "production"`, `import.meta.env.DEV`, etc.). Set `CONSOLE_INLINE_ENABLED=true` to keep it on, or `CONSOLE_INLINE_DISABLED=true` to opt out.
+
 ## Configuration
 
 Environment variables let you point the relay at a different host/port or tweak behaviour:

@@ -31,6 +31,8 @@ console.log("Hello from browser!");
 
 All console output will be sent to Neovim as virtual text automatically. No manual relay setup required.
 
+⚠️  The service only activates in development by default (based on `NODE_ENV`, `import.meta.env.DEV/PROD`, etc.). Set `CONSOLE_INLINE_ENABLED=true` to force enable, or `CONSOLE_INLINE_DISABLED=true` to opt out.
+
 ---
 
 ## Features
