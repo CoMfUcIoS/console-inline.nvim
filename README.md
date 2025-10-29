@@ -7,6 +7,7 @@ Zero-config Neovim plugin that shows `console.log/info/warn/error` inline as vir
 
 ![Browser demo with virtual text](images/screenshot-browser.png)
 ![Node demo with virtual text](images/screenshot-node.png)
+![Popup view for long payloads](images/screenshot-popup.png)
 
 ## Zero-config Usage (Recommended)
 
