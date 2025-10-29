@@ -87,6 +87,7 @@ require('console_inline').setup({
   replay_persisted_logs = false,
   suppress_css_color_conflicts = true,
   history_size = 200,
+  pattern_overrides = nil,
 })
 ```
 
@@ -100,7 +101,34 @@ require('console_inline').setup({
 - `replay_persisted_logs` — when `true`, replays entries from the JSON log file on `BufReadPost`.
 - `suppress_css_color_conflicts` — disable known `css-color` style autocommands that crash when virtual text is replayed.
 - `history_size` — maximum number of console entries retained for the Telescope history picker (`0` or lower keeps everything).
+- `pattern_overrides` — array of `{ pattern, icon?, highlight?, plain? }` rules that customise the rendered icon or highlight when the payload matches (`nil` keeps built-in defaults, `false` disables them).
 - `popup_formatter` — optional function(entry) -> lines used for popup formatting; defaults to prettifying JSON via `vim.inspect`.
+
+### Pattern overrides
+
+By default the plugin highlights a few common tags:
+
+- `TODO` → icon `📝`, highlight `Todo`
+- `FIXME` → icon `🛠`, highlight `WarningMsg`
+- `NOTE` → icon `🗒`, highlight `SpecialComment`
+
+Use `pattern_overrides` to change how specific log lines look or add more rules:
+
+```lua
+require('console_inline').setup({
+  pattern_overrides = {
+    { pattern = 'TODO', icon = '✅', highlight = 'DiffAdd', plain = true }, -- overrides default
+    { pattern = 'CRITICAL', icon = '💥', highlight = 'ErrorMsg' },         -- extends defaults
+  },
+})
+```
+
+- `pattern` — Lua pattern matched against the full JSON payload string.
+- `plain` — when `true`, performs a plain substring match instead of a Lua pattern.
+- `icon` — overrides the virtual text icon.
+- `highlight` — overrides the highlight group applied to the virtual text.
+
+Set `pattern_overrides = false` to disable all pattern-based styling.
 
 ### Service environment variables
 
