@@ -63,6 +63,76 @@ const isTruthy = (value: unknown): boolean | undefined => {
   return true;
 };
 
+const toBool = (value: unknown): boolean | null => {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'number') {
+    if (Number.isNaN(value)) return null;
+    return value !== 0;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim().toLowerCase();
+    if (!trimmed) return null;
+    if (['true', '1', 'yes', 'on', 'force', 'enabled'].includes(trimmed)) return true;
+    if (['false', '0', 'no', 'off', 'disabled'].includes(trimmed)) return false;
+  }
+  return null;
+};
+
+const resolveExplicitToggle = (): boolean | null => {
+  const candidates: unknown[] = [];
+  if (typeof process !== 'undefined' && process.env) {
+    candidates.push(process.env.CONSOLE_INLINE_ENABLED);
+    candidates.push(process.env.CONSOLE_INLINE_DISABLED);
+  }
+  if (typeof import.meta !== 'undefined' && (import.meta as any).env) {
+    const env = (import.meta as any).env;
+    candidates.push(env.CONSOLE_INLINE_ENABLED);
+    candidates.push(env.CONSOLE_INLINE_DISABLED);
+  }
+  if (typeof globalThis !== 'undefined') {
+    const g = globalThis as Record<string, unknown>;
+    candidates.push(g.CONSOLE_INLINE_ENABLED);
+    candidates.push(g.CONSOLE_INLINE_DISABLED);
+  }
+  for (const value of candidates) {
+    const bool = toBool(value);
+    if (bool !== null) {
+      return bool;
+    }
+  }
+  return null;
+};
+
+const determineDevEnvironment = (): boolean => {
+  const explicit = resolveExplicitToggle();
+  if (explicit !== null) {
+    return explicit;
+  }
+  if (isNode) {
+    const env = typeof process !== 'undefined' && process.env ? process.env.NODE_ENV : undefined;
+    if (env) {
+      return env !== 'production';
+    }
+  }
+  if (isBrowser) {
+    const metaEnv = typeof import.meta !== 'undefined' ? (import.meta as any).env : undefined;
+    if (metaEnv) {
+      if (typeof metaEnv.DEV !== 'undefined') {
+        return !!metaEnv.DEV;
+      }
+      if (typeof metaEnv.PROD !== 'undefined') {
+        return !metaEnv.PROD;
+      }
+    }
+  }
+  return true;
+};
+
 const debugEnabled = (() => {
   if (typeof process !== "undefined" && process.env) {
     const value = process.env.CONSOLE_INLINE_DEBUG;
@@ -81,6 +151,9 @@ const debugEnabled = (() => {
   }
   return false;
 })();
+
+const devEnvironment = determineDevEnvironment();
+
 
 const debug = (...args: unknown[]) => {
   if (!debugEnabled) {
@@ -567,12 +640,14 @@ function patchConsole() {
   });
 }
 
-if (isBrowser) {
+if (devEnvironment && isBrowser) {
   connectRelay();
-} else if (isNode) {
+} else if (devEnvironment && isNode) {
   connectTcp();
 }
-patchConsole();
+if (devEnvironment) {
+  patchConsole();
+}
 
 // Optionally export API
 export {};
