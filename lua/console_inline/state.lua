@@ -16,6 +16,7 @@ local M = {
 		suppress_css_color_conflicts = true,
 		popup_formatter = nil,
 		history_size = 200,
+		pattern_overrides = nil,
 	},
 	extmarks_by_buf_line = {},
 	last_msg_by_buf_line = {},

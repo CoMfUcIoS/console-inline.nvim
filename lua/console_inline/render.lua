@@ -5,6 +5,12 @@ local history = require("console_inline.history")
 
 local M = {}
 
+local default_pattern_overrides = {
+	{ pattern = "TODO", icon = "📝", highlight = "Todo", plain = true },
+	{ pattern = "FIXME", icon = "🛠", highlight = "WarningMsg", plain = true },
+	{ pattern = "NOTE", icon = "🗒", highlight = "SpecialComment", plain = true },
+}
+
 local function is_remote_path(path)
 	if type(path) ~= "string" then
 		return false
@@ -45,6 +51,51 @@ local function severity_icon(kind)
 		return "⚠", "DiagnosticWarn"
 	end
 	return "●", (kind == "info" and "DiagnosticInfo" or "NonText")
+end
+
+local function matches_pattern(text, rule)
+	local pattern = rule.pattern
+	if type(pattern) ~= "string" or pattern == "" then
+		return false
+	end
+	text = tostring(text or "")
+	if rule.plain then
+		return text:find(pattern, 1, true) ~= nil
+	end
+	local ok, start_pos = pcall(string.find, text, pattern)
+	if not ok then
+		log.debug("pattern override error", pattern)
+		return false
+	end
+	return start_pos ~= nil
+end
+
+local function apply_rules(payload, icon, hl, rules)
+	if type(rules) ~= "table" then
+		return false, icon, hl
+	end
+	for _, rule in ipairs(rules) do
+		if type(rule) == "table" and matches_pattern(payload, rule) then
+			local new_icon = rule.icon or icon
+			local new_hl = rule.highlight or hl
+			return true, new_icon, new_hl
+		end
+	end
+	return false, icon, hl
+end
+
+local function apply_pattern_overrides(payload, icon, hl)
+	local overrides = state.opts.pattern_overrides
+	if overrides == false then
+		return icon, hl
+	end
+	local matched
+	matched, icon, hl = apply_rules(payload, icon, hl, overrides)
+	if matched then
+		return icon, hl
+	end
+	matched, icon, hl = apply_rules(payload, icon, hl, default_pattern_overrides)
+	return icon, hl
 end
 
 local function clamp_line(buf, line0)
@@ -125,6 +176,7 @@ function M.render_message(msg)
 	local icon, hl = severity_icon(kind)
 	local full_payload = stringify_args(msg.args)
 	local display_payload = truncate(full_payload, state.opts.max_len)
+	icon, hl = apply_pattern_overrides(full_payload, icon, hl)
 	local history_entry = msg._console_inline_history_entry
 	if not history_entry then
 		history_entry = {
@@ -137,6 +189,7 @@ function M.render_message(msg)
 			text = icon .. " " .. display_payload,
 			raw_args = msg.args,
 			icon = icon,
+			highlight = hl,
 			timestamp = os.time(),
 		}
 		history.record(history_entry)
@@ -151,6 +204,7 @@ function M.render_message(msg)
 		history_entry.text = icon .. " " .. display_payload
 		history_entry.raw_args = msg.args
 		history_entry.icon = icon
+		history_entry.highlight = hl
 		if not history_entry.timestamp then
 			history_entry.timestamp = os.time()
 		end
@@ -218,6 +272,7 @@ function M.render_message(msg)
 		icon = icon,
 		count = count,
 		raw_args = msg.args,
+		highlight = hl,
 	}
 	set_line_text(buf, line0, entry, hl)
 end
