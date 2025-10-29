@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.0](https://github.com/CoMfUcIoS/console-inline.nvim/compare/console-inline.nvim-v0.7.1...console-inline.nvim-v1.0.0) (2025-10-29)
+
+
+### ⚠ BREAKING CHANGES
+
+* **render:** last_msg_by_buf_line now stores entry objects instead of plain text.
+
+### Features
+
+* add env toggles for dev-only activation ([34d1686](https://github.com/CoMfUcIoS/console-inline.nvim/commit/34d168661a3eab74f9a9aa9c9f9f02d068af369c))
+* **commands:** add ConsoleInlinePopup for full payload view ([b619280](https://github.com/CoMfUcIoS/console-inline.nvim/commit/b619280e35c90ea78b64c70868b62420985df42d))
+* **popup:** add customizable popup formatter option ([3fad159](https://github.com/CoMfUcIoS/console-inline.nvim/commit/3fad159a0527eb53fe3446e86f495bf672dd5cb8))
+* **render:** show message repeat count and fix queue ([6486e5b](https://github.com/CoMfUcIoS/console-inline.nvim/commit/6486e5b5bb986f9d88c23a378e4440ef802e29c2))
+
+
+### Bug Fixes
+
+* improve code style and update service version ([a60c02b](https://github.com/CoMfUcIoS/console-inline.nvim/commit/a60c02bcf247d4580b6d35b659b38915dba45d87))
+
+
+### Documentation
+
+* **readme:** add popup screenshot for long payloads ([694f227](https://github.com/CoMfUcIoS/console-inline.nvim/commit/694f22728d5d1140f216f8b70ebecebd1bd40bac))
+
 ## [0.7.1](https://github.com/CoMfUcIoS/console-inline.nvim/compare/console-inline.nvim-v0.7.0...console-inline.nvim-v0.7.1) (2025-10-28)
 
 
