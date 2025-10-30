@@ -31,7 +31,7 @@ describe("timer messages", function()
 			args = {},
 			time = { label = "fetch", duration_ms = 12.345, kind = "timeEnd" },
 		})
-		local entry = state.last_msg_by_buf_line[buf] and state.last_msg_by_buf_line[buf][9]
+		local entry = state.last_msg_by_buf_line[buf] and state.last_msg_by_buf_line[buf][10]
 		assert.is_truthy(entry)
 		assert.are.same("fetch", entry.time.label)
 		assert.is_truthy(entry.text:find("fetch", 1, true))
@@ -50,7 +50,7 @@ describe("timer messages", function()
 			args = {},
 			time = { label = "missing", missing = true, kind = "timeEnd" },
 		})
-		local entry = state.last_msg_by_buf_line[buf] and state.last_msg_by_buf_line[buf][4]
+		local entry = state.last_msg_by_buf_line[buf] and state.last_msg_by_buf_line[buf][5]
 		assert.is_truthy(entry)
 		assert.are.equal("missing", entry.time.label)
 		assert.is_truthy(entry.text:find("not found", 1, true))
