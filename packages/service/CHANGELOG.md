@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.0](https://github.com/CoMfUcIoS/console-inline.nvim/compare/@console-inline/service-v1.3.1...@console-inline/service-v1.4.0) (2025-10-30)
+
+
+### Features
+
+* surface console.time durations inline ([a830f1a](https://github.com/CoMfUcIoS/console-inline.nvim/commit/a830f1a44996e4a77b5794f4b5a99b01249e4d9d))
+* **trace:** inline stack traces for console.trace ([74f204c](https://github.com/CoMfUcIoS/console-inline.nvim/commit/74f204ca3654fbfada9c3f683d5385f7414b3f7a))
+
 ## [1.3.1](https://github.com/CoMfUcIoS/console-inline.nvim/compare/@console-inline/service-v1.3.0...@console-inline/service-v1.3.1) (2025-10-30)
 
 

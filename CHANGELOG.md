@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.0](https://github.com/CoMfUcIoS/console-inline.nvim/compare/console-inline.nvim-v1.1.1...console-inline.nvim-v1.2.0) (2025-10-30)
+
+
+### Features
+
+* surface console.time durations inline ([a830f1a](https://github.com/CoMfUcIoS/console-inline.nvim/commit/a830f1a44996e4a77b5794f4b5a99b01249e4d9d))
+* **trace:** inline stack traces for console.trace ([74f204c](https://github.com/CoMfUcIoS/console-inline.nvim/commit/74f204ca3654fbfada9c3f683d5385f7414b3f7a))
+
+
+### Documentation
+
+* **readme:** add horizontal rule at end of file ([2df7fde](https://github.com/CoMfUcIoS/console-inline.nvim/commit/2df7fde670bbf613901332ed99621789bbd05d82))
+
 ## [1.1.1](https://github.com/CoMfUcIoS/console-inline.nvim/compare/console-inline.nvim-v1.1.0...console-inline.nvim-v1.1.1) (2025-10-30)
 
 
