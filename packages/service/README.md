@@ -4,6 +4,8 @@ Runtime helper for [console-inline.nvim](https://github.com/comfucios/console-in
 Importing this package patches the global `console` object so every `log/info/warn/error`
 call is forwarded to your Neovim instance and displayed inline as virtual text.
 
+> Inspired by the workflow popularised by Wallaby.js [Console Ninja](https://marketplace.visualstudio.com/items?itemName=WallabyJs.console-ninja) — think of this as the Neovim-native counterpart.
+
 > **Required:** make sure the Neovim plugin is installed and its TCP server is running
 > (`autostart = true` by default). Without the plugin listening on the configured host and
 > port this package will keep retrying and queueing messages.
