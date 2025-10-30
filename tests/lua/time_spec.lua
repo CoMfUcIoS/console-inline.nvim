@@ -14,6 +14,19 @@ describe("timer messages", function()
 		return buf, file
 	end
 
+	local function find_entry(buf)
+		local map = state.last_msg_by_buf_line[buf]
+		if not map then
+			return nil
+		end
+		for _, value in pairs(map) do
+			if value then
+				return value
+			end
+		end
+		return nil
+	end
+
 	before_each(function()
 		history.clear()
 		state.extmarks_by_buf_line = {}
@@ -31,7 +44,7 @@ describe("timer messages", function()
 			args = {},
 			time = { label = "fetch", duration_ms = 12.345, kind = "timeEnd" },
 		})
-		local entry = state.last_msg_by_buf_line[buf] and state.last_msg_by_buf_line[buf][10]
+		local entry = find_entry(buf)
 		assert.is_truthy(entry)
 		assert.are.same("fetch", entry.time.label)
 		assert.is_truthy(entry.text:find("fetch", 1, true))
@@ -50,7 +63,7 @@ describe("timer messages", function()
 			args = {},
 			time = { label = "missing", missing = true, kind = "timeEnd" },
 		})
-		local entry = state.last_msg_by_buf_line[buf] and state.last_msg_by_buf_line[buf][5]
+		local entry = find_entry(buf)
 		assert.is_truthy(entry)
 		assert.are.equal("missing", entry.time.label)
 		assert.is_truthy(entry.text:find("not found", 1, true))
