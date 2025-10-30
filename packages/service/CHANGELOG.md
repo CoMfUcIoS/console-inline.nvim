@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.0](https://github.com/CoMfUcIoS/console-inline.nvim/compare/@console-inline/service-v1.4.0...@console-inline/service-v1.5.0) (2025-10-30)
+
+
+### Features
+
+* **network:** add inline network request logging ([8ce44b7](https://github.com/CoMfUcIoS/console-inline.nvim/commit/8ce44b7bf29bb2fadebc22e79f938419ce186ebb))
+* **service:** capture runtime errors inline in Neovim ([2ed6cd5](https://github.com/CoMfUcIoS/console-inline.nvim/commit/2ed6cd52fbb8562a8929821e12e07db167b540ea))
+
 ## [1.4.0](https://github.com/CoMfUcIoS/console-inline.nvim/compare/@console-inline/service-v1.3.1...@console-inline/service-v1.4.0) (2025-10-30)
 
 

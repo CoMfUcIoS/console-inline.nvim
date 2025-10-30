@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.0](https://github.com/CoMfUcIoS/console-inline.nvim/compare/console-inline.nvim-v1.2.0...console-inline.nvim-v1.3.0) (2025-10-30)
+
+
+### Features
+
+* **network:** add inline network request logging ([8ce44b7](https://github.com/CoMfUcIoS/console-inline.nvim/commit/8ce44b7bf29bb2fadebc22e79f938419ce186ebb))
+* **service:** capture runtime errors inline in Neovim ([2ed6cd5](https://github.com/CoMfUcIoS/console-inline.nvim/commit/2ed6cd52fbb8562a8929821e12e07db167b540ea))
+* **ui:** add automatic hover popups for log entries ([2bca42f](https://github.com/CoMfUcIoS/console-inline.nvim/commit/2bca42fbee45b2649213053019e5b627f8d3bb60))
+
+
+### Bug Fixes
+
+* **config:** simplify hover option handling in setup ([7ed45e0](https://github.com/CoMfUcIoS/console-inline.nvim/commit/7ed45e07de97ee007df635868525e4adc09f106b))
+
 ## [1.2.0](https://github.com/CoMfUcIoS/console-inline.nvim/compare/console-inline.nvim-v1.1.1...console-inline.nvim-v1.2.0) (2025-10-30)
 
 
