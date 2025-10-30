@@ -79,9 +79,7 @@ local M = {}
 
 function M.setup(opts)
 	state.opts = vim.tbl_deep_extend("force", state.opts, opts or {})
-	if state.opts.hover == false then
-		state.opts.hover = { enabled = false }
-	elseif type(state.opts.hover) ~= "table" then
+	if state.opts.hover == false or type(state.opts.hover) ~= "table" then
 		state.opts.hover = { enabled = false }
 	else
 		state.opts.hover.events = state.opts.hover.events or { "CursorHold" }
