@@ -44,6 +44,7 @@ All console output will be sent to Neovim as virtual text automatically. No manu
 - `console.trace` call stacks rendered inline with detailed frames available in the history picker and popup
 - `console.time` / `console.timeEnd` durations surfaced beside the terminating call for quick performance checks
 - Runtime errors (`window.onerror`/`process.uncaughtException`) and unhandled promise rejections captured inline so crashes don’t fall through the cracks
+- Network request logs for `fetch` and `XMLHttpRequest`, including status, errors, and timing inline beside the callsite
 - Works with Node.js, browser (via WebSocket relay), and ESM/CJS projects
 - No configuration required for basic usage
 - Supports persistent logs and queued messages

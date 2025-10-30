@@ -36,6 +36,9 @@ async function loadTesting() {
     timers: Map<string, number>;
     timerNow: () => number;
     browserQueue: string[];
+    formatNetworkSummary: (event: any) => string;
+    determineNetworkKind: (event: any) => string;
+    buildNetworkPayload: (event: any) => any;
   };
 }
 
@@ -155,5 +158,78 @@ describe("service helpers", () => {
     expect(timers.has("demo")).toBe(true);
     browserQueue.push("msg");
     expect(browserQueue.length).toBe(1);
+  });
+});
+
+describe("network helpers", () => {
+  it("formats network summaries", async () => {
+    const { formatNetworkSummary } = await loadTesting();
+    const summary = formatNetworkSummary({
+      type: "fetch",
+      method: "get",
+      url: "https://example.com/api",
+      status: 200,
+      statusText: "OK",
+      duration_ms: 150,
+      stage: "success",
+    });
+    expect(summary).toBe(
+      "[fetch] GET https://example.com/api → 200 OK (150 ms)",
+    );
+  });
+
+  it("derives severity from status and errors", async () => {
+    const { determineNetworkKind } = await loadTesting();
+    expect(
+      determineNetworkKind({
+        type: "fetch",
+        method: "GET",
+        url: "https://example.com",
+        status: 204,
+        stage: "success",
+      }),
+    ).toBe("info");
+    expect(
+      determineNetworkKind({
+        type: "xhr",
+        method: "POST",
+        url: "https://example.com",
+        status: 404,
+        stage: "success",
+      }),
+    ).toBe("warn");
+    expect(
+      determineNetworkKind({
+        type: "fetch",
+        method: "GET",
+        url: "https://example.com",
+        stage: "error",
+        error: "boom",
+      }),
+    ).toBe("error");
+  });
+
+  it("builds network payloads", async () => {
+    const { buildNetworkPayload } = await loadTesting();
+    const payload = buildNetworkPayload({
+      type: "xhr",
+      method: "POST",
+      url: "https://example.com/users",
+      status: 404,
+      statusText: "Not Found",
+      duration_ms: 42.5,
+      stage: "success",
+      callsite: {
+        file: "/src/users.ts",
+        line: 32,
+        column: 7,
+      },
+    });
+    expect(payload.file).toBe("/src/users.ts");
+    expect(payload.line).toBe(32);
+    expect(payload.kind).toBe("warn");
+    expect(payload.network.summary).toContain("POST");
+    expect(payload.args[0]).toBeTypeOf("string");
+    expect(payload.args[1]).toMatchObject({ status: 404, method: "POST" });
   });
 });
