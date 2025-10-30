@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.1](https://github.com/CoMfUcIoS/console-inline.nvim/compare/console-inline.nvim-v1.3.0...console-inline.nvim-v1.3.1) (2025-10-30)
+
+
+### Documentation
+
+* **readme:** add support section with donation link ([84ce926](https://github.com/CoMfUcIoS/console-inline.nvim/commit/84ce926b8f7f1cd5a157eb477b0017ca13324658))
+
 ## [1.3.0](https://github.com/CoMfUcIoS/console-inline.nvim/compare/console-inline.nvim-v1.2.0...console-inline.nvim-v1.3.0) (2025-10-30)
 
 
