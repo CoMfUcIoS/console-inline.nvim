@@ -191,6 +191,59 @@ const getTimerLabel = (args: any[]): string => {
   return "default";
 };
 
+const emitRuntimeMessage = (details: {
+  method: string;
+  args: any[];
+  file?: string | null;
+  line?: number | null;
+  column?: number | null;
+  stack?: string | null;
+}) => {
+  const file = details.file ? normalizePath(details.file) : "unknown";
+  const line =
+    details.line && Number.isFinite(details.line)
+      ? (details.line as number)
+      : 1;
+  const column =
+    details.column && Number.isFinite(details.column)
+      ? (details.column as number)
+      : 1;
+  const payload: any = {
+    method: details.method,
+    kind: "error",
+    args: sanitizeArgs(details.args || []),
+    file,
+    line,
+    column,
+    stack: details.stack || undefined,
+  };
+  sendToRelay(JSON.stringify(payload));
+};
+
+const parseFromStack = (stack?: string | null) => {
+  if (!stack) {
+    return {
+      file: undefined,
+      line: undefined,
+      column: undefined,
+      stack: undefined,
+    };
+  }
+  const frames = stack.split("\n");
+  for (let i = 1; i < frames.length; i++) {
+    const parsed = parseStackFrame(frames[i]);
+    if (parsed) {
+      return {
+        file: parsed.file,
+        line: parsed.line,
+        column: parsed.column,
+        stack,
+      };
+    }
+  }
+  return { file: undefined, line: undefined, column: undefined, stack };
+};
+
 const debug = (...args: unknown[]) => {
   if (!debugEnabled) {
     return;
@@ -473,6 +526,109 @@ function sendToRelay(msg: string) {
     return;
   }
 }
+
+const attachBrowserRuntimeHandlers = () => {
+  if (!isBrowser || typeof window === "undefined") {
+    return;
+  }
+  const win = window as any;
+  if (win.__console_inline_runtime_attached) {
+    return;
+  }
+  win.__console_inline_runtime_attached = true;
+
+  const previousOnError = win.onerror;
+  win.onerror = function (
+    message: any,
+    source?: string,
+    lineno?: number,
+    colno?: number,
+    error?: Error,
+  ) {
+    try {
+      const stack =
+        error && typeof error.stack === "string" ? error.stack : undefined;
+      const parsed = parseFromStack(stack);
+      emitRuntimeMessage({
+        method: "window.onerror",
+        args: error ? [message, error] : [message],
+        file: source || parsed.file || undefined,
+        line: lineno ?? parsed.line ?? undefined,
+        column: colno ?? parsed.column ?? undefined,
+        stack: stack || parsed.stack || undefined,
+      });
+    } catch (err) {
+      debug("window.onerror capture failed", err);
+    }
+    if (typeof previousOnError === "function") {
+      return previousOnError.apply(this, arguments as any);
+    }
+    return false;
+  };
+
+  win.addEventListener("unhandledrejection", (event: PromiseRejectionEvent) => {
+    try {
+      const reason = event.reason;
+      const stack =
+        reason && typeof (reason as any).stack === "string"
+          ? (reason as any).stack
+          : undefined;
+      const parsed = parseFromStack(stack);
+      emitRuntimeMessage({
+        method: "window.unhandledrejection",
+        args: [reason],
+        file: parsed.file,
+        line: parsed.line,
+        column: parsed.column,
+        stack: parsed.stack,
+      });
+    } catch (err) {
+      debug("unhandledrejection capture failed", err);
+    }
+  });
+};
+
+const attachNodeRuntimeHandlers = () => {
+  if (!isNode || typeof process === "undefined") {
+    return;
+  }
+  const proc = process as any;
+  if (proc.__console_inline_runtime_attached) {
+    return;
+  }
+  proc.__console_inline_runtime_attached = true;
+
+  if (typeof proc.on === "function") {
+    proc.on("uncaughtExceptionMonitor", (error: Error) => {
+      const parsed = parseFromStack(error && error.stack);
+      emitRuntimeMessage({
+        method: "process.uncaughtException",
+        args: [error],
+        file: parsed.file,
+        line: parsed.line,
+        column: parsed.column,
+        stack: parsed.stack,
+      });
+    });
+
+    proc.on("unhandledRejection", (reason: unknown, promise: unknown) => {
+      const stack =
+        reason && typeof (reason as any).stack === "string"
+          ? (reason as any).stack
+          : undefined;
+      const parsed = parseFromStack(stack);
+      emitRuntimeMessage({
+        method: "process.unhandledRejection",
+        args: [reason, promise],
+        file: parsed.file,
+        line: parsed.line,
+        column: parsed.column,
+        stack: parsed.stack,
+      });
+      originalError("[console-inline] Unhandled promise rejection", reason);
+    });
+  }
+};
 
 function normalizePath(rawFile: string) {
   let file = rawFile.trim();
@@ -779,12 +935,14 @@ function patchConsole() {
   });
 }
 
-if (devEnvironment && isBrowser) {
-  connectRelay();
-} else if (devEnvironment && isNode) {
-  connectTcp();
-}
 if (devEnvironment) {
+  if (isBrowser) {
+    attachBrowserRuntimeHandlers();
+    connectRelay();
+  } else if (isNode) {
+    attachNodeRuntimeHandlers();
+    connectTcp();
+  }
   patchConsole();
 }
 

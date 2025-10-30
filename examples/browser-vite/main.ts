@@ -28,6 +28,14 @@ setInterval(() => {
   }
 }, 8000);
 
+setTimeout(() => {
+  void Promise.reject(new Error("demo unhandled rejection"));
+}, 9000);
+
+setTimeout(() => {
+  throw new Error("uncaught browser error");
+}, 11000);
+
 function nestedTrace(depth = 0) {
   if (depth === 2) {
     console.trace("manual browser trace");
