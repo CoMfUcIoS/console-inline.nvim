@@ -45,6 +45,7 @@ All console output will be sent to Neovim as virtual text automatically. No manu
 - `console.time` / `console.timeEnd` durations surfaced beside the terminating call for quick performance checks
 - Runtime errors (`window.onerror`/`process.uncaughtException`) and unhandled promise rejections captured inline so crashes don’t fall through the cracks
 - Network request logs for `fetch` and `XMLHttpRequest`, including status, errors, and timing inline beside the callsite
+- Automatic hover popups (via `CursorHold`) to inspect the full payload without leaving your buffer
 - Works with Node.js, browser (via WebSocket relay), and ESM/CJS projects
 - No configuration required for basic usage
 - Supports persistent logs and queued messages
@@ -110,6 +111,7 @@ require('console_inline').setup({
 - `history_size` — maximum number of console entries retained for the Telescope history picker (`0` or lower keeps everything).
 - `pattern_overrides` — array of `{ pattern, icon?, highlight?, plain? }` rules that customise the rendered icon or highlight when the payload matches (`nil` keeps built-in defaults, `false` disables them).
 - `filters` — configure allow/deny lists and severity overrides for specific paths or payload patterns.
+- `hover` — control automatic hover popups (set `enabled = false` to opt out, override `events`, `hide_events`, `border`, etc. to tweak behaviour).
 - `popup_formatter` — optional function(entry) -> lines used for popup formatting; defaults to prettifying JSON via `vim.inspect`.
 
 ### Pattern overrides

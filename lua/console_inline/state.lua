@@ -18,6 +18,16 @@ local M = {
 		history_size = 200,
 		pattern_overrides = nil,
 		filters = nil,
+		hover = {
+			enabled = true,
+			events = { "CursorHold" },
+			hide_events = { "CursorMoved", "CursorMovedI", "InsertEnter", "BufLeave" },
+			border = "rounded",
+			focusable = false,
+			relative = "cursor",
+			row = 1,
+			col = 0,
+		},
 	},
 	extmarks_by_buf_line = {},
 	last_msg_by_buf_line = {},
@@ -26,6 +36,7 @@ local M = {
 	relay_stderr = nil,
 	relay_pid = nil,
 	history = {},
+	hover_popup = nil,
 }
 
 return M
