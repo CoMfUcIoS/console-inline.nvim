@@ -161,6 +161,32 @@ const devEnvironment = determineDevEnvironment();
 
 const timers = new Map<string, number>();
 
+type CallSite = {
+  file: string;
+  line: number;
+  column: number;
+  stack?: string;
+};
+
+type NetworkStage = "success" | "error";
+type NetworkType = "fetch" | "xhr";
+
+interface NetworkEventBase {
+  type: NetworkType;
+  method: string;
+  url: string;
+  status?: number;
+  statusText?: string;
+  ok?: boolean;
+  duration_ms?: number;
+  error?: string;
+  stage: NetworkStage;
+}
+
+interface NetworkLogEvent extends NetworkEventBase {
+  callsite: CallSite;
+}
+
 const timerNow = (() => {
   if (
     typeof performance !== "undefined" &&
@@ -250,6 +276,73 @@ const debug = (...args: unknown[]) => {
   }
   originalDebug("[console-inline]", ...args);
 };
+
+function captureCallSite(options?: { skip?: number }): CallSite {
+  const skip = Math.max(0, options?.skip ?? 2);
+  let file = "unknown";
+  let line = 1;
+  let column = 1;
+  let stackString: string | undefined;
+  try {
+    const err = new Error();
+    stackString =
+      typeof err.stack === "string" && err.stack.length > 0
+        ? err.stack
+        : undefined;
+    const stack = stackString?.split("\n");
+    let best: { file: string; line: number; column: number } | null = null;
+    if (stack && stack.length > skip) {
+      for (let i = skip; i < stack.length; i++) {
+        const frame = stack[i];
+        const parsed = parseStackFrame(frame);
+        if (!parsed) {
+          continue;
+        }
+        const candidateFile = parsed.file;
+        const candidateLine = parsed.line;
+        const candidateColumn = parsed.column;
+        const isInternal =
+          candidateFile.includes("node_modules") ||
+          candidateFile.includes("internal/") ||
+          candidateFile.startsWith("node:") ||
+          candidateFile.includes("bootstrap/") ||
+          candidateFile.includes("/@vite/client") ||
+          candidateFile.includes("vite/dist/client") ||
+          isServiceFrame(candidateFile);
+        if (isInternal) {
+          if (file === "unknown") {
+            file = candidateFile;
+            line = candidateLine;
+            column = candidateColumn;
+          }
+          continue;
+        }
+        if (
+          !best ||
+          candidateLine > best.line ||
+          (candidateLine === best.line && candidateColumn > best.column)
+        ) {
+          best = {
+            file: candidateFile,
+            line: candidateLine,
+            column: candidateColumn,
+          };
+        }
+      }
+    }
+    if (best) {
+      file = best.file;
+      line = best.line;
+      column = best.column;
+    }
+    if (file === "unknown" && stack) {
+      debug("Could not parse file from stack", stack.join("\n"));
+    }
+  } catch (err) {
+    debug("Error parsing stack trace", err);
+  }
+  return { file, line, column, stack: stackString };
+}
 
 const getNumber = (value: unknown): number | undefined => {
   if (typeof value === "number" && !Number.isNaN(value)) {
@@ -527,6 +620,211 @@ function sendToRelay(msg: string) {
   }
 }
 
+const instrumentBrowserNetwork = (win: any) => {
+  try {
+    if (win.__console_inline_network_attached) {
+      return;
+    }
+    win.__console_inline_network_attached = true;
+  } catch (err) {
+    debug("Failed to mark network instrumentation", err);
+    return;
+  }
+
+  const fetchFn = win.fetch;
+  if (typeof fetchFn === "function") {
+    const originalFetch = fetchFn.bind(win);
+    win.fetch = function (...fetchArgs: any[]) {
+      const callsite = captureCallSite({ skip: 3 });
+      const startedAt = timerNow();
+      const info = resolveFetchRequest(fetchArgs);
+      let result: any;
+      try {
+        result = originalFetch(...fetchArgs);
+      } catch (error) {
+        emitNetworkLog({
+          type: "fetch",
+          method: info.method,
+          url: info.url,
+          error: errorToMessage(error),
+          duration_ms: timerNow() - startedAt,
+          stage: "error",
+          callsite,
+        });
+        throw error;
+      }
+      return Promise.resolve(result).then(
+        (response: any) => {
+          const duration = timerNow() - startedAt;
+          const status =
+            typeof response?.status === "number" ? response.status : undefined;
+          const statusText =
+            typeof response?.statusText === "string"
+              ? response.statusText
+              : undefined;
+          const ok =
+            typeof response?.ok === "boolean" ? response.ok : undefined;
+          const finalUrl =
+            response &&
+            typeof response.url === "string" &&
+            response.url.length > 0
+              ? response.url
+              : info.url;
+          emitNetworkLog({
+            type: "fetch",
+            method: info.method,
+            url: finalUrl,
+            status,
+            statusText,
+            ok,
+            duration_ms: duration,
+            stage: "success",
+            callsite,
+          });
+          return response;
+        },
+        (error: unknown) => {
+          emitNetworkLog({
+            type: "fetch",
+            method: info.method,
+            url: info.url,
+            error: errorToMessage(error),
+            duration_ms: timerNow() - startedAt,
+            stage: "error",
+            callsite,
+          });
+          throw error;
+        },
+      );
+    } as any;
+  }
+
+  const XHR = win.XMLHttpRequest;
+  if (typeof XHR === "function" && XHR.prototype) {
+    const proto = XHR.prototype;
+    const originalOpen = proto.open;
+    const originalSend = proto.send;
+    if (
+      typeof originalOpen === "function" &&
+      typeof originalSend === "function"
+    ) {
+      proto.open = function (
+        this: XMLHttpRequest,
+        method: string,
+        url: string,
+        ...rest: any[]
+      ) {
+        const meta =
+          (this as any).__console_inline_network_meta__ ||
+          ((this as any).__console_inline_network_meta__ = {});
+        meta.method =
+          typeof method === "string" && method ? method.toUpperCase() : "GET";
+        if (typeof url === "string") {
+          meta.url = url;
+        } else if (url && typeof (url as any).toString === "function") {
+          meta.url = (url as any).toString();
+        }
+        return originalOpen.apply(this, [method, url, ...rest]);
+      };
+
+      proto.send = function (this: XMLHttpRequest, ...sendArgs: any[]) {
+        const xhr = this;
+        const meta =
+          (xhr as any).__console_inline_network_meta__ ||
+          ((xhr as any).__console_inline_network_meta__ = {});
+        meta.start = timerNow();
+        meta.callsite = captureCallSite({ skip: 3 });
+        meta.error = undefined;
+        meta.emitted = false;
+
+        const listeners: Array<[string, EventListener]> = [];
+        const add = (event: string, handler: EventListener) => {
+          xhr.addEventListener(event, handler);
+          listeners.push([event, handler]);
+        };
+        const cleanup = () => {
+          for (const [event, handler] of listeners) {
+            xhr.removeEventListener(event, handler);
+          }
+          listeners.length = 0;
+        };
+        const finalize = (stage: NetworkStage, errorMessage?: string) => {
+          if (meta.emitted) {
+            return;
+          }
+          meta.emitted = true;
+          cleanup();
+          const status =
+            typeof xhr.status === "number" && xhr.status !== 0
+              ? xhr.status
+              : undefined;
+          const statusText =
+            typeof xhr.statusText === "string" && xhr.statusText
+              ? xhr.statusText
+              : undefined;
+          const finalUrl =
+            typeof xhr.responseURL === "string" && xhr.responseURL
+              ? xhr.responseURL
+              : meta.url || "";
+          const duration =
+            typeof meta.start === "number" && Number.isFinite(meta.start)
+              ? timerNow() - meta.start
+              : undefined;
+          const ok =
+            typeof status === "number" && stage === "success"
+              ? status >= 200 && status < 400
+              : undefined;
+          emitNetworkLog({
+            type: "xhr",
+            method: meta.method || "GET",
+            url: finalUrl,
+            status,
+            statusText,
+            ok,
+            duration_ms: duration,
+            error: errorMessage,
+            stage,
+            callsite: meta.callsite || captureCallSite({ skip: 3 }),
+          });
+        };
+
+        const onLoad: EventListener = () => {
+          finalize(meta.error ? "error" : "success", meta.error);
+        };
+        const onError: EventListener = () => {
+          meta.error = "Network error";
+          finalize("error", meta.error);
+        };
+        const onAbort: EventListener = () => {
+          meta.error = "Request aborted";
+          finalize("error", meta.error);
+        };
+        const onTimeout: EventListener = () => {
+          meta.error = "Request timed out";
+          finalize("error", meta.error);
+        };
+        const onLoadEnd: EventListener = () => {
+          finalize(meta.error ? "error" : "success", meta.error);
+        };
+
+        add("load", onLoad);
+        add("error", onError);
+        add("abort", onAbort);
+        add("timeout", onTimeout);
+        add("loadend", onLoadEnd);
+
+        try {
+          return originalSend.apply(this, sendArgs);
+        } catch (error) {
+          meta.error = errorToMessage(error);
+          finalize("error", meta.error);
+          throw error;
+        }
+      };
+    }
+  }
+};
+
 const attachBrowserRuntimeHandlers = () => {
   if (!isBrowser || typeof window === "undefined") {
     return;
@@ -586,6 +884,8 @@ const attachBrowserRuntimeHandlers = () => {
       debug("unhandledrejection capture failed", err);
     }
   });
+
+  instrumentBrowserNetwork(win);
 };
 
 const attachNodeRuntimeHandlers = () => {
@@ -787,6 +1087,184 @@ function formatStackTrace(stack?: string | null) {
   return frames;
 }
 
+function formatDuration(duration?: number): string {
+  if (typeof duration !== "number" || !Number.isFinite(duration)) {
+    return "";
+  }
+  const clamped = Math.max(0, duration);
+  if (clamped >= 100) {
+    return `${Math.round(clamped)} ms`;
+  }
+  return `${clamped.toFixed(1)} ms`;
+}
+
+function normalizeNetworkUrl(url: string): string {
+  if (!url) {
+    return "(unknown)";
+  }
+  try {
+    if (typeof location !== "undefined" && location.origin) {
+      const parsed = new URL(url, location.origin);
+      if (parsed.origin === location.origin) {
+        return parsed.pathname + parsed.search;
+      }
+      return parsed.href;
+    }
+    const parsed = new URL(url);
+    return parsed.href;
+  } catch {
+    return url;
+  }
+}
+
+function determineNetworkKind(
+  event: NetworkEventBase,
+): "info" | "warn" | "error" {
+  if (event.error || event.stage === "error") {
+    return "error";
+  }
+  if (typeof event.status === "number") {
+    if (event.status >= 500) {
+      return "error";
+    }
+    if (event.status >= 400) {
+      return "warn";
+    }
+  }
+  return "info";
+}
+
+function formatNetworkSummary(event: NetworkEventBase): string {
+  const prefix = event.type === "fetch" ? "[fetch]" : "[xhr]";
+  const method = (event.method || "GET").toUpperCase();
+  const displayUrl = normalizeNetworkUrl(event.url);
+  const base = `${prefix} ${method} ${displayUrl}`;
+  let outcome: string | undefined;
+  if (event.error) {
+    outcome = `✖ ${event.error}`;
+  } else if (typeof event.status === "number") {
+    outcome = event.statusText
+      ? `${event.status} ${event.statusText}`.trim()
+      : `${event.status}`;
+  }
+  const duration = formatDuration(event.duration_ms);
+  const parts = [base];
+  if (outcome) {
+    parts.push(`→ ${outcome}`);
+  }
+  if (duration) {
+    parts.push(`(${duration})`);
+  }
+  return parts.join(" ");
+}
+
+function buildNetworkPayload(event: NetworkLogEvent) {
+  const summary = formatNetworkSummary(event);
+  const kind = determineNetworkKind(event);
+  const details: Record<string, unknown> = {
+    type: event.type,
+    method: event.method,
+    url: event.url,
+    stage: event.stage,
+  };
+  if (typeof event.status === "number") {
+    details.status = event.status;
+  }
+  if (event.statusText) {
+    details.statusText = event.statusText;
+  }
+  if (typeof event.ok === "boolean") {
+    details.ok = event.ok;
+  }
+  if (
+    typeof event.duration_ms === "number" &&
+    Number.isFinite(event.duration_ms)
+  ) {
+    details.duration_ms = event.duration_ms;
+  }
+  if (event.error) {
+    details.error = event.error;
+  }
+
+  const payload: any = {
+    method: event.type,
+    kind,
+    args: sanitizeArgs([summary, details]),
+    file: event.callsite.file,
+    line: event.callsite.line,
+    column: event.callsite.column,
+    stack: event.callsite.stack,
+    network: {
+      ...details,
+      summary,
+    },
+  };
+
+  return payload;
+}
+
+function emitNetworkLog(event: NetworkLogEvent) {
+  try {
+    const payload = buildNetworkPayload(event);
+    sendToRelay(JSON.stringify(payload));
+  } catch (err) {
+    debug("Failed to emit network log", err);
+  }
+}
+
+function resolveFetchRequest(args: any[]): { method: string; url: string } {
+  const [input, init] = args;
+  let method: string | undefined;
+  let url = "";
+
+  if (typeof input === "string") {
+    url = input;
+  } else if (typeof URL !== "undefined" && input instanceof URL) {
+    url = input.toString();
+  } else if (input && typeof input === "object") {
+    const request = input as { url?: string; method?: string };
+    if (request.url && typeof request.url === "string") {
+      url = request.url;
+    }
+    if (request.method && typeof request.method === "string") {
+      method = request.method;
+    }
+  }
+
+  if (!method && init && typeof init === "object") {
+    const initMethod = (init as { method?: string }).method;
+    if (initMethod && typeof initMethod === "string") {
+      method = initMethod;
+    }
+  }
+
+  if (!method) {
+    method = "GET";
+  }
+
+  return {
+    method: method.toUpperCase(),
+    url,
+  };
+}
+
+function errorToMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message || error.name;
+  }
+  if (typeof error === "string") {
+    return error;
+  }
+  if (error === undefined || error === null) {
+    return "Unknown network error";
+  }
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+}
+
 function patchConsole() {
   [
     "log",
@@ -843,66 +1321,11 @@ function patchConsole() {
         }
       }
 
-      // Get stack trace for file/line
-      let file = "unknown";
-      let line = 1;
-      let column = 1;
-      let stackString: string | undefined;
-      try {
-        const err = new Error();
-        const stack = err.stack?.split("\n");
-        stackString = err.stack ?? undefined;
-        let best: { file: string; line: number; column: number } | null = null;
-        if (stack && stack.length > 2) {
-          for (let i = 2; i < stack.length; i++) {
-            const frame = stack[i];
-            const parsed = parseStackFrame(frame);
-            if (!parsed) {
-              continue;
-            }
-            const candidateFile = parsed.file;
-            const candidateLine = parsed.line;
-            const candidateColumn = parsed.column;
-            const isInternal =
-              candidateFile.includes("node_modules") ||
-              candidateFile.includes("internal/") ||
-              candidateFile.startsWith("node:") ||
-              candidateFile.includes("bootstrap/") ||
-              candidateFile.includes("/@vite/client") ||
-              candidateFile.includes("vite/dist/client") ||
-              isServiceFrame(candidateFile);
-            if (isInternal) {
-              if (file === "unknown") {
-                file = candidateFile;
-                line = candidateLine;
-                column = candidateColumn;
-              }
-              continue;
-            }
-            if (
-              !best ||
-              candidateLine > best.line ||
-              (candidateLine === best.line && candidateColumn > best.column)
-            ) {
-              best = {
-                file: candidateFile,
-                line: candidateLine,
-                column: candidateColumn,
-              };
-            }
-          }
-        }
-        if (best) {
-          file = best.file;
-          line = best.line;
-          column = best.column;
-        }
-        if (file === "unknown" && stack) {
-          debug("Could not parse file from stack", stack.join("\n"));
-        }
-      } catch (e) {
-        debug("Error parsing stack trace", e);
-      }
+      const callsite = captureCallSite({ skip: 2 });
+      const file = callsite.file;
+      const line = callsite.line;
+      const column = callsite.column;
+      const stackString = callsite.stack;
       // Map method to kind
       let kind = method;
       if (kind === "warn") kind = "warn";
@@ -962,4 +1385,7 @@ export const __testing__ = {
   timers,
   timerNow,
   browserQueue,
+  formatNetworkSummary,
+  determineNetworkKind,
+  buildNetworkPayload,
 };

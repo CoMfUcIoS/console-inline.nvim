@@ -54,6 +54,65 @@ local function severity_icon(kind)
 	return "●", (kind == "info" and "DiagnosticInfo" or "NonText")
 end
 
+local function find_network_line(buf, line0, network)
+	if type(network) ~= "table" then
+		return nil
+	end
+	local max = vim.api.nvim_buf_line_count(buf)
+	if max <= 0 then
+		return nil
+	end
+	local function matches(line)
+		if not line then
+			return false
+		end
+		if network.type == "fetch" then
+			if line:find("fetch%s*%(") or line:find("await%s+fetch") then
+				return true
+			end
+		elseif network.type == "xhr" then
+			if line:find("XMLHttpRequest") or line:find(":open%s*%(") or line:find(":send%s*%(") then
+				return true
+			end
+		end
+		local url = network.url
+		if type(url) == "string" and #url >= 3 then
+			local plain = url
+			plain = plain:gsub("^[^%w]+", "")
+			if #plain >= 3 and line:find(plain, 1, true) then
+				return true
+			end
+		end
+		return false
+	end
+	local start = math.max(0, line0)
+	local finish = math.min(max - 1, line0 + 20)
+	for i = start, finish do
+		local line = vim.api.nvim_buf_get_lines(buf, i, i + 1, false)[1]
+		if matches(line) then
+			return i
+		end
+	end
+	local back_start = math.max(0, line0 - 5)
+	for i = back_start, line0 - 1 do
+		local line = vim.api.nvim_buf_get_lines(buf, i, i + 1, false)[1]
+		if matches(line) then
+			return i
+		end
+	end
+	return nil
+end
+
+local function network_icon(kind)
+	if kind == "error" then
+		return "⇣", "DiagnosticError"
+	end
+	if kind == "warn" then
+		return "⇣", "DiagnosticWarn"
+	end
+	return "⇢", "DiagnosticInfo"
+end
+
 local function matches_pattern(text, rule)
 	local pattern = rule.pattern
 	if type(pattern) ~= "string" or pattern == "" then
@@ -246,7 +305,11 @@ local function gather_candidates(buf, method, terms)
 	return results
 end
 
-local function adjust_line(buf, line0, method, args, timer, column)
+local function adjust_line(buf, line0, method, args, timer, column, network)
+	local network_line = find_network_line(buf, line0, network)
+	if network_line ~= nil then
+		return network_line
+	end
 	local candidates = gather_candidates(buf, method, collect_terms(args, timer))
 	if #candidates == 0 then
 		return line0
@@ -311,9 +374,14 @@ function M.render_message(msg)
 		return
 	end
 
-	local icon, hl = severity_icon(kind)
-	local display_payload = truncate(full_payload, state.opts.max_len)
-	icon, hl = apply_pattern_overrides(full_payload, icon, hl)
+	local icon, hl
+	if msg.network then
+		icon, hl = network_icon(kind)
+	else
+		icon, hl = severity_icon(kind)
+	end
+	local display_payload = msg.network and msg.network.summary or full_payload
+	icon, hl = apply_pattern_overrides(display_payload or full_payload, icon, hl)
 	if type(msg.trace) == "table" and #msg.trace > 0 then
 		local first = msg.trace[1]
 		if msg.args == nil or #msg.args == 0 then
@@ -359,6 +427,7 @@ function M.render_message(msg)
 			method = msg.method,
 			trace = msg.trace,
 			time = msg.time,
+			network = msg.network,
 			timestamp = os.time(),
 		}
 		history.record(history_entry)
@@ -377,6 +446,7 @@ function M.render_message(msg)
 		history_entry.method = msg.method
 		history_entry.trace = msg.trace
 		history_entry.time = msg.time
+		history_entry.network = msg.network
 		if not history_entry.timestamp then
 			history_entry.timestamp = os.time()
 		end
@@ -417,7 +487,7 @@ function M.render_message(msg)
 	end
 
 	local line0 = clamp_line(buf, (msg.line or 1) - 1)
-	line0 = adjust_line(buf, line0, msg.method, msg.args, msg.time, msg.column)
+	line0 = adjust_line(buf, line0, msg.method, msg.args, msg.time, msg.column, msg.network)
 	history_entry.render_line = line0 + 1
 	history_entry.buf = buf
 
