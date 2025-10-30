@@ -254,3 +254,7 @@ GPLv3 License. See LICENSE for details.
 See [CHANGELOG.md](CHANGELOG.md) for release history.
 
 ---
+
+## Support
+
+If console-inline.nvim saves you time, consider supporting development: [Buy Me a Coffee](https://buymeacoffee.com/comfucios).
