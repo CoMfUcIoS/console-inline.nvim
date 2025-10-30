@@ -115,6 +115,12 @@ return function()
 				else
 					lines = { "<no entry>" }
 				end
+				if value and type(value.trace) == "table" and #value.trace > 0 then
+					lines = lines or {}
+					for idx, frame in ipairs(value.trace) do
+						lines[#lines + 1] = string.format("[trace %d] %s", idx, tostring(frame))
+					end
+				end
 				if #lines == 0 then
 					lines = { "<empty>" }
 				end

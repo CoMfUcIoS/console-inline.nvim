@@ -554,8 +554,32 @@ function parseStackFrame(frame: string) {
   return { file: rawFile, line: lineNum, column: columnNum };
 }
 
+function formatStackTrace(stack?: string | null) {
+  if (!stack) {
+    return [] as string[];
+  }
+  const frames: string[] = [];
+  const lines = stack.split("\n").slice(1); // omit the "Error" line
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      continue;
+    }
+    const parsed = parseStackFrame(trimmed);
+    if (parsed) {
+      if (isServiceFrame(parsed.file)) {
+        continue;
+      }
+      frames.push(`${parsed.file}:${parsed.line}:${parsed.column}`);
+    } else if (!trimmed.includes("@console-inline/service")) {
+      frames.push(trimmed);
+    }
+  }
+  return frames;
+}
+
 function patchConsole() {
-  ["log", "warn", "error", "info", "debug"].forEach((method) => {
+  ["log", "warn", "error", "info", "debug", "trace"].forEach((method) => {
     const orig = console[method as keyof typeof console];
     (console[method as keyof typeof console] as (...args: any[]) => void) = (
       ...args: any[]
@@ -626,7 +650,9 @@ function patchConsole() {
       else if (kind === "error") kind = "error";
       else if (kind === "info") kind = "info";
       else kind = "log";
-      const payload = {
+      const isTrace = method === "trace";
+      const traceFrames = isTrace ? formatStackTrace(stackString) : undefined;
+      const payload: any = {
         method,
         kind,
         args: sanitizeArgs(args),
@@ -635,6 +661,9 @@ function patchConsole() {
         column,
         stack: stackString,
       };
+      if (traceFrames && traceFrames.length > 0) {
+        payload.trace = traceFrames;
+      }
       // Prevent recursive logging from relay-server.js
       if (!file.endsWith("relay-server.js")) {
         sendToRelay(JSON.stringify(payload));
@@ -665,4 +694,5 @@ export const __testing__ = {
   sanitizeArgs,
   parseStackFrame,
   getNumber,
+  formatStackTrace,
 };

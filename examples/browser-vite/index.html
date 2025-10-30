@@ -20,6 +20,22 @@
         padding: 0.15rem 0.4rem;
         border-radius: 0.4rem;
       }
+      button {
+        background: #1d4ed8;
+        color: #e2e8f0;
+        border: none;
+        padding: 0.6rem 1rem;
+        margin-right: 0.5rem;
+        margin-bottom: 0.5rem;
+        border-radius: 0.4rem;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #2563eb;
+      }
+      .actions {
+        margin-top: 1.5rem;
+      }
     </style>
   </head>
   <body>
@@ -32,6 +48,13 @@
         <code>npm run dev</code>, and watch logs appear inline.
       </p>
       <p id="status">Sending test messages…</p>
+      <section class="actions">
+        <h2>Manual triggers</h2>
+        <p>Use these to exercise trace stacks, errors, and network activity:</p>
+        <button id="trace-btn">Trigger console.trace</button>
+        <button id="error-btn">Log handled error</button>
+        <button id="fetch-btn">Send fetch (expect 404)</button>
+      </section>
     </main>
     <script type="module" src="./main.ts"></script>
   </body>

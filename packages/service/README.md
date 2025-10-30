@@ -6,6 +6,8 @@ call is forwarded to your Neovim instance and displayed inline as virtual text.
 
 > Inspired by the workflow popularised by Wallaby.js [Console Ninja](https://marketplace.visualstudio.com/items?itemName=WallabyJs.console-ninja) — think of this as the Neovim-native counterpart.
 
+Stack traces from `console.trace` are captured as well, giving you inline call stacks alongside traditional log output.
+
 > **Required:** make sure the Neovim plugin is installed and its TCP server is running
 > (`autostart = true` by default). Without the plugin listening on the configured host and
 > port this package will keep retrying and queueing messages.
@@ -27,6 +29,7 @@ import "@console-inline/service";
 
 console.log("Hello from Node!");
 console.warn({ status: "demo" });
+console.trace("Inspect call stack");
 console.info("info");
 ```
 
@@ -40,6 +43,7 @@ import "@console-inline/service";
 
 console.info("Rendered from the browser");
 console.warn({ status: "demo" });
+console.trace("Inspect call stack");
 console.log("log");
 ```
 

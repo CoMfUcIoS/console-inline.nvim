@@ -31,6 +31,7 @@ async function loadTesting() {
       frame: string,
     ) => { file: string; line: number; column: number } | null;
     getNumber: (value: unknown) => number | undefined;
+    formatStackTrace: (stack?: string | null) => string[];
   };
 }
 
@@ -109,6 +110,21 @@ describe("service helpers", () => {
     const parsed = parseStackFrame("at Object.fn (/tmp/file.js:12:34)");
     expect(parsed).toEqual({ file: "/tmp/file.js", line: 12, column: 34 });
     expect(parseStackFrame("invalid frame")).toBeNull();
+  });
+
+  it("formats stack traces", async () => {
+    const { formatStackTrace } = await loadTesting();
+    const sample = [
+      "Error",
+      "    at foo (/tmp/app.js:10:5)",
+      "    at bar (/tmp/lib.js:2:3)",
+      "    at Object.<anonymous> (/tmp/@console-inline/service/index.ts:1:1)",
+    ].join("\n");
+    expect(formatStackTrace(sample)).toEqual([
+      "/tmp/app.js:10:5",
+      "/tmp/lib.js:2:3",
+    ]);
+    expect(formatStackTrace(undefined)).toEqual([]);
   });
 
   it("extracts numeric values", async () => {

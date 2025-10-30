@@ -68,6 +68,12 @@ function M.default(entry)
 			append_tagged(lines, string.format("[%d] ", idx), formatted)
 		end
 	end
+	local trace = entry.trace or {}
+	if type(trace) == "table" and #trace > 0 then
+		for idx, frame in ipairs(trace) do
+			append_tagged(lines, string.format("[trace %d] ", idx), tostring(frame))
+		end
+	end
 	if #lines == 0 then
 		lines = { entry.text or "" }
 	end

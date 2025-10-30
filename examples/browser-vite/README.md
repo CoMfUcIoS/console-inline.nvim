@@ -16,4 +16,7 @@ Then open `examples/browser-vite/main.ts` in Neovim with the
 render them inline in the buffer.
 
 The demo just imports `@console-inline/service` and triggers a few `console.*`
-calls on intervals—no custom relay or boilerplate required.
+calls on intervals—no custom relay or boilerplate required. Use the buttons on
+the page to manually exercise `console.trace`, structured errors, and a fetch
+request that produces a `404`, mirroring the workflows you’ll test before a
+release.

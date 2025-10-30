@@ -123,6 +123,16 @@ local function clamp_line(buf, line0)
 	return line0
 end
 
+local function strip_ts_suffix(filename)
+	if type(filename) ~= "string" then
+		return filename
+	end
+	if filename:match("%.ts$") then
+		return filename:gsub("%.ts$", ".js")
+	end
+	return filename
+end
+
 local function has_console(buf, line0)
 	local line = vim.api.nvim_buf_get_lines(buf, line0, line0 + 1, false)[1]
 	if not line then
@@ -131,22 +141,122 @@ local function has_console(buf, line0)
 	return line:match("console%.") ~= nil
 end
 
-local function adjust_line(buf, line0)
+local function has_console_method(buf, line0, method)
+	if not method or method == "" then
+		return false
+	end
+	local line = vim.api.nvim_buf_get_lines(buf, line0, line0 + 1, false)[1]
+	if not line then
+		return false
+	end
+	local literal = "console." .. method
+	return line:find(literal, 1, true) ~= nil
+end
+
+local function has_console_term(buf, line0, term)
+	if not term or term == "" then
+		return false
+	end
+	local line = vim.api.nvim_buf_get_lines(buf, line0, line0 + 1, false)[1]
+	if not line then
+		return false
+	end
+	if not line:find("console%.") then
+		return false
+	end
+	return line:find(term, 1, true) ~= nil
+end
+
+local function extract_search_term(args)
+	if type(args) ~= "table" then
+		return nil
+	end
+	for _, value in ipairs(args) do
+		if type(value) == "string" then
+			local trimmed = value:match("^%s*(.-)%s*$") or value
+			if #trimmed >= 3 then
+				return trimmed
+			end
+		end
+	end
+	return nil
+end
+
+local function line_matches(buf, line0, method, term)
+	local line = vim.api.nvim_buf_get_lines(buf, line0, line0 + 1, false)[1]
+	if not line then
+		return false
+	end
+	if not line:find("console%.") then
+		return false
+	end
+	if method and method ~= "" and not line:find("console." .. method, 1, true) then
+		return false
+	end
+	if term and term ~= "" and not line:find(term, 1, true) then
+		return false
+	end
+	return true
+end
+
+local function adjust_line(buf, line0, method, args)
+	if has_console_method(buf, line0, method) then
+		return line0
+	end
 	if has_console(buf, line0) then
 		return line0
 	end
 	local max = vim.api.nvim_buf_line_count(buf)
-	for offset = 1, 6 do
+	local term = extract_search_term(args)
+	if term then
+		local best, best_dist = nil, nil
+		for idx = 0, max - 1 do
+			if has_console_term(buf, idx, term) then
+				local dist = math.abs(idx - line0)
+				if not best or dist < best_dist then
+					best = idx
+					best_dist = dist
+				end
+			end
+		end
+		if best then
+			return best
+		end
+	end
+	local search_limit = 12
+	for offset = 1, search_limit do
+		local down = line0 + offset
+		if down < max and has_console_method(buf, down, method) then
+			return down
+		end
+		local up = line0 - offset
+		if up >= 0 and has_console_method(buf, up, method) then
+			return up
+		end
+	end
+	for offset = 1, search_limit do
 		local down = line0 + offset
 		if down < max and has_console(buf, down) then
 			return down
 		end
-	end
-	for offset = 1, 3 do
 		local up = line0 - offset
 		if up >= 0 and has_console(buf, up) then
 			return up
 		end
+	end
+	local best_line = nil
+	local best_dist = nil
+	for idx = 0, max - 1 do
+		if line_matches(buf, idx, method, term) then
+			local dist = math.abs(idx - line0)
+			if not best_line or dist < best_dist then
+				best_line = idx
+				best_dist = dist
+			end
+		end
+	end
+	if best_line then
+		return best_line
 	end
 	return line0
 end
@@ -196,6 +306,17 @@ function M.render_message(msg)
 	local icon, hl = severity_icon(kind)
 	local display_payload = truncate(full_payload, state.opts.max_len)
 	icon, hl = apply_pattern_overrides(full_payload, icon, hl)
+	if type(msg.trace) == "table" and #msg.trace > 0 then
+		local first = msg.trace[1]
+		if msg.args == nil or #msg.args == 0 then
+			display_payload = first
+		else
+			display_payload = display_payload .. " → " .. first
+		end
+	elseif type(msg.trace) == "table" and #msg.trace == 0 then
+		display_payload = "trace"
+	end
+	display_payload = truncate(display_payload, state.opts.max_len)
 	local history_entry = msg._console_inline_history_entry
 	if not history_entry then
 		history_entry = {
@@ -209,6 +330,8 @@ function M.render_message(msg)
 			raw_args = msg.args,
 			icon = icon,
 			highlight = hl,
+			method = msg.method,
+			trace = msg.trace,
 			timestamp = os.time(),
 		}
 		history.record(history_entry)
@@ -224,6 +347,8 @@ function M.render_message(msg)
 		history_entry.raw_args = msg.args
 		history_entry.icon = icon
 		history_entry.highlight = hl
+		history_entry.method = msg.method
+		history_entry.trace = msg.trace
 		if not history_entry.timestamp then
 			history_entry.timestamp = os.time()
 		end
@@ -233,6 +358,15 @@ function M.render_message(msg)
 
 	local buf_module = require("console_inline.buf")
 	local buf = buf_module.find_buf_by_path(msg.file)
+	if not buf then
+		local remapped = strip_ts_suffix(msg.file)
+		if remapped ~= msg.file then
+			buf = buf_module.find_buf_by_path(remapped)
+			if buf then
+				msg.file = remapped
+			end
+		end
+	end
 	if not buf then
 		log.debug("render_message: buffer not found for", msg.file)
 		if state.opts.open_missing_files then
@@ -255,7 +389,7 @@ function M.render_message(msg)
 	end
 
 	local line0 = clamp_line(buf, (msg.line or 1) - 1)
-	line0 = adjust_line(buf, line0)
+	line0 = adjust_line(buf, line0, msg.method, msg.args)
 	history_entry.render_line = line0 + 1
 	history_entry.buf = buf
 
@@ -283,6 +417,8 @@ function M.render_message(msg)
 		count = count,
 		raw_args = msg.args,
 		highlight = hl,
+		method = msg.method,
+		trace = msg.trace,
 	}
 	set_line_text(buf, line0, entry, hl)
 end
