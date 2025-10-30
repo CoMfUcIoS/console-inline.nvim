@@ -14,3 +14,10 @@ function nested(level = 0) {
 }
 
 setInterval(() => nested(), 6000);
+
+setInterval(() => {
+  console.time("node-demo");
+  setTimeout(() => {
+    console.timeEnd("node-demo");
+  }, 750);
+}, 7000);

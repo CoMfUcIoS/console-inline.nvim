@@ -20,6 +20,7 @@ async function loadTesting() {
   const mod = await import("./index");
   const testing = (mod as any).__testing__;
   expect(testing).toBeTruthy();
+  (globalThis as any).__console_inline_testing__ = testing;
   return testing as {
     isTruthy: (value: unknown) => boolean | undefined;
     toBool: (value: unknown) => boolean | null;
@@ -32,6 +33,9 @@ async function loadTesting() {
     ) => { file: string; line: number; column: number } | null;
     getNumber: (value: unknown) => number | undefined;
     formatStackTrace: (stack?: string | null) => string[];
+    timers: Map<string, number>;
+    timerNow: () => number;
+    browserQueue: string[];
   };
 }
 
@@ -42,12 +46,20 @@ afterAll(() => {
   if (originalDisabled === undefined)
     delete process.env.CONSOLE_INLINE_DISABLED;
   else process.env.CONSOLE_INLINE_DISABLED = originalDisabled;
+  delete (globalThis as any).__console_inline_testing__;
 });
 
 describe("service helpers", () => {
   afterEach(() => {
     delete process.env.CONSOLE_INLINE_ENABLED;
     delete process.env.CONSOLE_INLINE_DISABLED;
+    const testing = (globalThis as any).__console_inline_testing__;
+    if (testing && Array.isArray(testing.browserQueue)) {
+      testing.browserQueue.length = 0;
+    }
+    if (testing && testing.timers) {
+      testing.timers.clear();
+    }
   });
 
   it("evaluates truthiness correctly", async () => {
@@ -132,5 +144,16 @@ describe("service helpers", () => {
     expect(getNumber(10)).toBe(10);
     expect(getNumber("20")).toBe(20);
     expect(getNumber("abc")).toBeUndefined();
+  });
+
+  it("exposes timer utilities", async () => {
+    const { timers, timerNow, browserQueue } = await loadTesting();
+    timers.clear();
+    const value = timerNow();
+    expect(value).toBeTypeOf("number");
+    timers.set("demo", value);
+    expect(timers.has("demo")).toBe(true);
+    browserQueue.push("msg");
+    expect(browserQueue.length).toBe(1);
   });
 });

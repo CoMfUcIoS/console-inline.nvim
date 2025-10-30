@@ -159,6 +159,38 @@ const debugEnabled = (() => {
 
 const devEnvironment = determineDevEnvironment();
 
+const timers = new Map<string, number>();
+
+const timerNow = (() => {
+  if (
+    typeof performance !== "undefined" &&
+    typeof performance.now === "function"
+  ) {
+    return () => performance.now();
+  }
+  if (typeof process !== "undefined") {
+    const hr = (process as any).hrtime;
+    if (typeof hr === "function") {
+      if (typeof hr.bigint === "function") {
+        const origin = hr.bigint();
+        return () => Number(hr.bigint() - origin) / 1e6;
+      }
+      return () => {
+        const [sec, nano] = hr();
+        return sec * 1e3 + nano / 1e6;
+      };
+    }
+  }
+  return () => Date.now();
+})();
+
+const getTimerLabel = (args: any[]): string => {
+  if (args && typeof args[0] === "string" && args[0].trim() !== "") {
+    return args[0];
+  }
+  return "default";
+};
+
 const debug = (...args: unknown[]) => {
   if (!debugEnabled) {
     return;
@@ -207,6 +239,7 @@ let tcpClient: any = null;
 let tcpConnecting = false;
 let tcpRetryTimer: ReturnType<typeof setTimeout> | null = null;
 const tcpQueue: string[] = [];
+const browserQueue: string[] = [];
 
 const clearReconnectTimer = () => {
   if (reconnectTimer) {
@@ -260,6 +293,20 @@ const flushTcpQueue = (socket: any) => {
     const payload = tcpQueue.shift();
     if (payload !== undefined) {
       socket.write(payload + "\n");
+    }
+  }
+};
+
+const flushBrowserQueue = (ws: any) => {
+  while (browserQueue.length > 0) {
+    const payload = browserQueue.shift();
+    if (payload !== undefined) {
+      try {
+        ws.send(payload);
+      } catch (err) {
+        debug("Browser relay send failed", err);
+        break;
+      }
     }
   }
 };
@@ -322,6 +369,7 @@ function connectRelay() {
       ws.addEventListener("open", () => {
         debug("Relay connected");
         clearReconnectTimer();
+        flushBrowserQueue(ws);
       });
       ws.addEventListener("close", (event) => {
         debug("Relay closed", event);
@@ -365,6 +413,7 @@ function connectRelay() {
     ws.on("open", () => {
       debug("Relay connected");
       clearReconnectTimer();
+      flushBrowserQueue(ws);
     });
     ws.on("close", () => {
       debug("Relay closed");
@@ -399,6 +448,10 @@ function sendToRelay(msg: string) {
         debug("Relay send failed", err);
       }
     }
+    if (MAX_QUEUE > 0 && browserQueue.length >= MAX_QUEUE) {
+      browserQueue.shift();
+    }
+    browserQueue.push(msg);
     connectRelay();
     scheduleReconnect();
     return;
@@ -579,11 +632,61 @@ function formatStackTrace(stack?: string | null) {
 }
 
 function patchConsole() {
-  ["log", "warn", "error", "info", "debug", "trace"].forEach((method) => {
+  [
+    "log",
+    "warn",
+    "error",
+    "info",
+    "debug",
+    "trace",
+    "time",
+    "timeEnd",
+    "timeLog",
+  ].forEach((method) => {
     const orig = console[method as keyof typeof console];
     (console[method as keyof typeof console] as (...args: any[]) => void) = (
       ...args: any[]
     ) => {
+      if (method === "time") {
+        const label = getTimerLabel(args);
+        timers.set(label, timerNow());
+        (orig as Function).apply(console, args);
+        return;
+      }
+
+      let payloadArgs = args;
+      let timeMeta: {
+        label: string;
+        duration_ms?: number;
+        missing?: boolean;
+        kind: "timeEnd" | "timeLog";
+      } | null = null;
+
+      if (method === "timeEnd" || method === "timeLog") {
+        const label = getTimerLabel(args);
+        const start = timers.get(label);
+        if (typeof start === "number") {
+          const duration = timerNow() - start;
+          if (method === "timeEnd") {
+            timers.delete(label);
+          }
+          timeMeta = {
+            label,
+            duration_ms: duration,
+            kind: method,
+          };
+          const formatted = `${label}: ${duration.toFixed(3)} ms`;
+          payloadArgs = [formatted, ...args.slice(1)];
+        } else {
+          timeMeta = {
+            label,
+            missing: true,
+            kind: method,
+          };
+          payloadArgs = [`Timer '${label}' does not exist`];
+        }
+      }
+
       // Get stack trace for file/line
       let file = "unknown";
       let line = 1;
@@ -655,7 +758,7 @@ function patchConsole() {
       const payload: any = {
         method,
         kind,
-        args: sanitizeArgs(args),
+        args: sanitizeArgs(payloadArgs),
         file,
         line,
         column,
@@ -664,11 +767,14 @@ function patchConsole() {
       if (traceFrames && traceFrames.length > 0) {
         payload.trace = traceFrames;
       }
+      if (timeMeta) {
+        payload.time = timeMeta;
+      }
       // Prevent recursive logging from relay-server.js
       if (!file.endsWith("relay-server.js")) {
         sendToRelay(JSON.stringify(payload));
       }
-      (orig as Function).apply(console, args);
+      (orig as Function).apply(console, payloadArgs);
     };
   });
 }
@@ -695,4 +801,7 @@ export const __testing__ = {
   parseStackFrame,
   getNumber,
   formatStackTrace,
+  timers,
+  timerNow,
+  browserQueue,
 };

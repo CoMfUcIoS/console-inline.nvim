@@ -42,6 +42,7 @@ All console output will be sent to Neovim as virtual text automatically. No manu
 
 - Inline display of `console.log`, `console.info`, `console.warn`, and `console.error` output directly at the source line in Neovim
 - `console.trace` call stacks rendered inline with detailed frames available in the history picker and popup
+- `console.time` / `console.timeEnd` durations surfaced beside the terminating call for quick performance checks
 - Works with Node.js, browser (via WebSocket relay), and ESM/CJS projects
 - No configuration required for basic usage
 - Supports persistent logs and queued messages

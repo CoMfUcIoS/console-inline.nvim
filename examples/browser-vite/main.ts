@@ -50,6 +50,8 @@ if (errorButton) {
 
 if (fetchButton) {
   fetchButton.addEventListener("click", async () => {
+    const label = "fetch-button";
+    console.time(label);
     const url = `/__console-inline-demo__?t=${Date.now()}`;
     try {
       const response = await fetch(url);
@@ -60,6 +62,8 @@ if (fetchButton) {
       }
     } catch (err) {
       console.error("fetch failed", err);
+    } finally {
+      console.timeEnd(label);
     }
   });
 }

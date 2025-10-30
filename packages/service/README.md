@@ -7,6 +7,7 @@ call is forwarded to your Neovim instance and displayed inline as virtual text.
 > Inspired by the workflow popularised by Wallaby.js [Console Ninja](https://marketplace.visualstudio.com/items?itemName=WallabyJs.console-ninja) — think of this as the Neovim-native counterpart.
 
 Stack traces from `console.trace` are captured as well, giving you inline call stacks alongside traditional log output.
+Timers started with `console.time` and completed via `console.timeEnd`/`console.timeLog` report their elapsed duration right next to the terminating call.
 
 > **Required:** make sure the Neovim plugin is installed and its TCP server is running
 > (`autostart = true` by default). Without the plugin listening on the configured host and
