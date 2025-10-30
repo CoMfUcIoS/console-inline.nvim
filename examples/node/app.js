@@ -21,3 +21,11 @@ setInterval(() => {
     console.timeEnd("node-demo");
   }, 750);
 }, 7000);
+
+setTimeout(() => {
+  Promise.reject(new Error("demo unhandled rejection"));
+}, 9000);
+
+setTimeout(() => {
+  throw new Error("demo uncaught exception");
+}, 12000);

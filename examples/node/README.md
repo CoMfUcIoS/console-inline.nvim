@@ -17,6 +17,8 @@ seconds the script emits:
 - `console.warn`, `console.log`, `console.info`, and `console.error`
 - A nested `console.trace` call so you can verify inline stack rendering
 - A `console.time`/`console.timeEnd` pair to confirm timing output behaviour
+- An unhandled rejection and an uncaught exception (they’ll terminate the demo)
+  so you can see runtime failures show up in Neovim before the process exits
 
 Feel free to tweak intervals or add additional messages specific to your
 project before cutting a release.
