@@ -2,6 +2,97 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.0](https://github.com/CoMfUcIoS/console-inline.nvim/compare/console-inline.nvim-v1.3.1...console-inline.nvim-v2.0.0) (2025-10-30)
+
+
+### ⚠ BREAKING CHANGES
+
+* **render:** last_msg_by_buf_line now stores entry objects instead of plain text.
+
+### Features
+
+* add env toggles for dev-only activation ([38f1663](https://github.com/CoMfUcIoS/console-inline.nvim/commit/38f1663a54e0d8d538309b973e70f588b57216f2))
+* add project filters for log rendering control ([93f3d0a](https://github.com/CoMfUcIoS/console-inline.nvim/commit/93f3d0a3575cce82bae312ecdba77164f345dd1e))
+* browser relay, screenshots, and doc updates ([c7168b9](https://github.com/CoMfUcIoS/console-inline.nvim/commit/c7168b9e2406b9c40e7103e06243c7b5d18951b4))
+* **ci:** add auto merge and improve npm publish workflow ([ee9ddf2](https://github.com/CoMfUcIoS/console-inline.nvim/commit/ee9ddf2ac29e7c131432a1078b89602d53cbae84))
+* **ci:** add manual trigger to npm publish workflow ([678a725](https://github.com/CoMfUcIoS/console-inline.nvim/commit/678a725aef51bb36ab573383d08682de7dc482f2))
+* **ci:** update npm publish workflow for service package ([78e1bbd](https://github.com/CoMfUcIoS/console-inline.nvim/commit/78e1bbdddfb3ca85a555cb568b15976bb36971b4))
+* **commands:** add ConsoleInlinePopup for full payload view ([37742e3](https://github.com/CoMfUcIoS/console-inline.nvim/commit/37742e358c4511519b6246151266969fdec58210))
+* **docs:** add demo status warning in browser example ([f3180a5](https://github.com/CoMfUcIoS/console-inline.nvim/commit/f3180a56b54a5dec69a3476f0635b5679bbfb821))
+* **history:** add console output history and Telescope picker ([55f9617](https://github.com/CoMfUcIoS/console-inline.nvim/commit/55f961714a863a9763f46bb12409832f90f39e4c))
+* migrate to service package and update usage docs ([4280ece](https://github.com/CoMfUcIoS/console-inline.nvim/commit/4280ece8a53876a628a4fee207b14fcec0fdaf5a))
+* **network:** add inline network request logging ([57fb277](https://github.com/CoMfUcIoS/console-inline.nvim/commit/57fb27798d90a1e735aefb3e7c7a12d5d546a40b))
+* **pattern_overrides:** add ignore_case support ([b939afa](https://github.com/CoMfUcIoS/console-inline.nvim/commit/b939afafdcdb2f86b43787bd5d33f2d688c45c79))
+* persist and restore logs across buffer reloads ([ca23506](https://github.com/CoMfUcIoS/console-inline.nvim/commit/ca23506bfb29126b43b3239c46dca275ca8df00e))
+* **popup:** add customizable popup formatter option ([3cc0a0d](https://github.com/CoMfUcIoS/console-inline.nvim/commit/3cc0a0da2fecc4f5a19af872f75cb2d79e139e45))
+* **render:** add pattern_overrides for log styling ([da3a3a2](https://github.com/CoMfUcIoS/console-inline.nvim/commit/da3a3a22011580d24593da85ef9be7b053c4dc80))
+* **render:** show message repeat count and fix queue ([87d1a3d](https://github.com/CoMfUcIoS/console-inline.nvim/commit/87d1a3dbc9304562de984f7621bf0b384b62dad9))
+* **service:** capture runtime errors inline in Neovim ([44d7759](https://github.com/CoMfUcIoS/console-inline.nvim/commit/44d7759984f6b82a403a38f5c4897b66dfbc7e3f))
+* surface console.time durations inline ([5469b9d](https://github.com/CoMfUcIoS/console-inline.nvim/commit/5469b9d108f44c286636872b07d27b749cb055e8))
+* **trace:** inline stack traces for console.trace ([39b20ef](https://github.com/CoMfUcIoS/console-inline.nvim/commit/39b20ef1adece19a92af8bf2b15b685289c80f6b))
+* **ui:** add automatic hover popups for log entries ([b864d77](https://github.com/CoMfUcIoS/console-inline.nvim/commit/b864d77891faaff53e5816626ea9e16830843353))
+
+
+### Bug Fixes
+
+* canonicalize file keys for queued messages ([4a05913](https://github.com/CoMfUcIoS/console-inline.nvim/commit/4a0591340efb1ea24d0e456d2876e8691934ada6))
+* **ci:** allow comfucios to trigger auto-merge workflow ([95275bb](https://github.com/CoMfUcIoS/console-inline.nvim/commit/95275bbb7c7e656937d6a4165430982619c51508))
+* **ci:** update tag filter for npm publish workflow ([1df85bd](https://github.com/CoMfUcIoS/console-inline.nvim/commit/1df85bd2c276296cea2881290d1e4a11a9a8934c))
+* **config:** simplify hover option handling in setup ([0fcfd5d](https://github.com/CoMfUcIoS/console-inline.nvim/commit/0fcfd5d7961cd20483315196c8f512b3a5201357))
+* **docs:** update plugin repo to comfucios/console-inline ([8649e64](https://github.com/CoMfUcIoS/console-inline.nvim/commit/8649e643a2c48356ea2887061216e20dd124b58b))
+* improve code style and update service version ([0384612](https://github.com/CoMfUcIoS/console-inline.nvim/commit/03846126b962c75c0197f56c2be586ce5d2b0d7e))
+* **render:** skip remote paths in render_message ([8e2861d](https://github.com/CoMfUcIoS/console-inline.nvim/commit/8e2861d1c543fe5c1b4ce16e5eba7d6a542f33be))
+
+
+### Maintenance
+
+* **config:** add dependabot and update release-please ([4b747e0](https://github.com/CoMfUcIoS/console-inline.nvim/commit/4b747e0dc67b3bf5c971d7fa3ffb5b8b783a15c5))
+* **config:** update service version and release settings ([3b5ffe5](https://github.com/CoMfUcIoS/console-inline.nvim/commit/3b5ffe509ebe20c393ecb399694e8705ace2cc32))
+* **license:** add GPL-3.0-or-later headers to all files ([a772895](https://github.com/CoMfUcIoS/console-inline.nvim/commit/a772895ea99edb433ebf8dfe10b1405d10bf19b6))
+* **license:** add GPLv3 license file ([9847cae](https://github.com/CoMfUcIoS/console-inline.nvim/commit/9847cae1f666bf50dfecae22decd2eb6b48a233b))
+* **license:** update to GPL-3.0-or-later ([5a6dab9](https://github.com/CoMfUcIoS/console-inline.nvim/commit/5a6dab99fcda41c8cb8e1b83c580c4840460f266))
+* **lint:** allow unscoped and undefined variables in selene ([a0193fa](https://github.com/CoMfUcIoS/console-inline.nvim/commit/a0193fa2369ff2764f350023713ff65ea23c4196))
+* release main ([58837e2](https://github.com/CoMfUcIoS/console-inline.nvim/commit/58837e23bdae0484d0747afd44d35204154a8416))
+* release main ([0779219](https://github.com/CoMfUcIoS/console-inline.nvim/commit/0779219dd4c28a7ac5a5e8e102a1e5f9e2834e42))
+* release main ([0f191e1](https://github.com/CoMfUcIoS/console-inline.nvim/commit/0f191e18bfa7860c3c9fa628767524d250ddd46a))
+* release main ([29f3b48](https://github.com/CoMfUcIoS/console-inline.nvim/commit/29f3b487ac5594978c813bdd450505a71047d90f))
+* release main ([fa376de](https://github.com/CoMfUcIoS/console-inline.nvim/commit/fa376de3504019c0ac215f38cacaef80cf9d9b19))
+* release main ([3c9f5a5](https://github.com/CoMfUcIoS/console-inline.nvim/commit/3c9f5a5e2dde66ff8585815804f8a21417bb052e))
+* release main ([54fbb7e](https://github.com/CoMfUcIoS/console-inline.nvim/commit/54fbb7e503dc3150cc9a96d35c7922e26de37aa3))
+* release main ([8d12187](https://github.com/CoMfUcIoS/console-inline.nvim/commit/8d121877050b05134b528eb391a30b273e5a24d2))
+* release main ([5d298e7](https://github.com/CoMfUcIoS/console-inline.nvim/commit/5d298e705c45294bc4bc2bfd7f0e28dec2a2eb81))
+* release main ([9df3470](https://github.com/CoMfUcIoS/console-inline.nvim/commit/9df3470ecc0f6f1dd27deeff7d2e406575ba158f))
+* release main ([8d393ae](https://github.com/CoMfUcIoS/console-inline.nvim/commit/8d393ae94d3634d9b3329520d4b8ad9c0dce6f01))
+* release main ([9daeef6](https://github.com/CoMfUcIoS/console-inline.nvim/commit/9daeef64ea6609ce33018ac6c63dd0e77f2da472))
+* release main ([477ee94](https://github.com/CoMfUcIoS/console-inline.nvim/commit/477ee94a22b3aa54b1cedcf7847ad7f5a1be2896))
+* release main ([34baa43](https://github.com/CoMfUcIoS/console-inline.nvim/commit/34baa431171be65462f58576b1fffaaa237c9eb1))
+* release main ([21e4aa8](https://github.com/CoMfUcIoS/console-inline.nvim/commit/21e4aa80e6567e3947dbffeb9cee403a3022f757))
+* release main ([543452b](https://github.com/CoMfUcIoS/console-inline.nvim/commit/543452b9586e306094058809d509c224a9bbd499))
+* release main ([63dff1d](https://github.com/CoMfUcIoS/console-inline.nvim/commit/63dff1d1140bce803d87e3595b50e67113c8b6ac))
+* release main ([23392e3](https://github.com/CoMfUcIoS/console-inline.nvim/commit/23392e38deb3a5493da72ce81a0979916d0ae5f6))
+* release main ([5bb10ce](https://github.com/CoMfUcIoS/console-inline.nvim/commit/5bb10cee40defe4eb9ce8f76f0633cd31d99f3de))
+* release main ([5645ff1](https://github.com/CoMfUcIoS/console-inline.nvim/commit/5645ff16982764cbbb41b71846f16466880a4ffe))
+* release main ([#12](https://github.com/CoMfUcIoS/console-inline.nvim/issues/12)) ([9b31467](https://github.com/CoMfUcIoS/console-inline.nvim/commit/9b31467528c700ea9bc7a6dc210325a818390623))
+* release main ([#13](https://github.com/CoMfUcIoS/console-inline.nvim/issues/13)) ([330a91a](https://github.com/CoMfUcIoS/console-inline.nvim/commit/330a91af1192b87626fcc4bad2a6941ef1bdb4fb))
+* release main ([#14](https://github.com/CoMfUcIoS/console-inline.nvim/issues/14)) ([0b01368](https://github.com/CoMfUcIoS/console-inline.nvim/commit/0b01368210bd5b3fdda042e407d7728aaa8ea267))
+* release main ([#15](https://github.com/CoMfUcIoS/console-inline.nvim/issues/15)) ([381e6cc](https://github.com/CoMfUcIoS/console-inline.nvim/commit/381e6cc8e51dee6aed7aa828e91cbd5f1e333946))
+* release main ([#16](https://github.com/CoMfUcIoS/console-inline.nvim/issues/16)) ([b057953](https://github.com/CoMfUcIoS/console-inline.nvim/commit/b057953025e03a3150a64db434c2ebb16ec2ee69))
+* **selene:** update config for Neovim global 'vim' ([30d9cc7](https://github.com/CoMfUcIoS/console-inline.nvim/commit/30d9cc76773757c9a2d4954d6d4ecd0eb408ec67))
+
+
+### Documentation
+
+* **readme:** add CI and Lint badges to README ([3c2fe7f](https://github.com/CoMfUcIoS/console-inline.nvim/commit/3c2fe7f07de2913765a6aaa4316ef431c379d570))
+* **readme:** add Console Ninja inspiration note ([72a03c5](https://github.com/CoMfUcIoS/console-inline.nvim/commit/72a03c57f32379e8b4bbda9d492d3cd0e8e37e12))
+* **readme:** add developer setup for pre-commit hooks ([31a88af](https://github.com/CoMfUcIoS/console-inline.nvim/commit/31a88afef2e25f30e1d11800770f3ba79ccf8815))
+* **readme:** add horizontal rule at end of file ([cfa0b42](https://github.com/CoMfUcIoS/console-inline.nvim/commit/cfa0b428ae457d84bb127196f769c58dd8bbb76a))
+* **readme:** add mermaid diagram for plugin flow ([24294b4](https://github.com/CoMfUcIoS/console-inline.nvim/commit/24294b43b4b3e6c69a211a863fabcca8f808c9ca))
+* **readme:** add popup screenshot for long payloads ([c085dc8](https://github.com/CoMfUcIoS/console-inline.nvim/commit/c085dc8e570983deb3f186dc6cbba74fbbcb8d70))
+* **readme:** add screenshot for console-inline usage ([98bcf3e](https://github.com/CoMfUcIoS/console-inline.nvim/commit/98bcf3e466946573adfdd59e0e6bc9179e70fdcf))
+* **readme:** add support section with donation link ([31057d7](https://github.com/CoMfUcIoS/console-inline.nvim/commit/31057d75ac47da4b685960bc75738558d1a57c20))
+* **readme:** clarify usage and config for service ([7d87d4b](https://github.com/CoMfUcIoS/console-inline.nvim/commit/7d87d4bee99e8bd706176d9756319a45bd8898ef))
+* update usage examples and release token config ([71b2b9b](https://github.com/CoMfUcIoS/console-inline.nvim/commit/71b2b9b219a88ddd617db57201f689565af847ac))
+
 ## [1.3.1](https://github.com/CoMfUcIoS/console-inline.nvim/compare/console-inline.nvim-v1.3.0...console-inline.nvim-v1.3.1) (2025-10-30)
 
 
