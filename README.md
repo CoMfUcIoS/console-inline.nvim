@@ -5,6 +5,8 @@
 
 Zero-config Neovim plugin that shows `console.log/info/warn/error` inline as virtual text at the emitting source line.
 
+> Inspired by the excellent [Console Ninja](https://marketplace.visualstudio.com/items?itemName=WallabyJs.console-ninja) experience—now tailored for Neovim.
+
 ![Browser demo with virtual text](images/screenshot-browser.png)
 ![Node demo with virtual text](images/screenshot-node.png)
 ![Popup view for long payloads](images/screenshot-popup.png)
