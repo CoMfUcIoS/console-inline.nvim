@@ -248,3 +248,5 @@ GPLv3 License. See LICENSE for details.
 ## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for release history.
+
+---
