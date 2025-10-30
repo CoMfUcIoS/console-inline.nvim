@@ -74,6 +74,19 @@ function M.default(entry)
 			append_tagged(lines, string.format("[trace %d] ", idx), tostring(frame))
 		end
 	end
+	local timer = entry.time
+	if type(timer) == "table" and timer.label then
+		local label = timer.label or "timer"
+		local line
+		if timer.duration_ms then
+			line = string.format("%s: %.3f ms", label, tonumber(timer.duration_ms) or 0)
+		elseif timer.missing then
+			line = string.format("Timer '%s' not found", label)
+		else
+			line = label
+		end
+		append_tagged(lines, "[time] ", line)
+	end
 	if #lines == 0 then
 		lines = { entry.text or "" }
 	end

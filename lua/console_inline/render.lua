@@ -123,6 +123,34 @@ local function clamp_line(buf, line0)
 	return line0
 end
 
+local function candidate_paths(file)
+	if type(file) ~= "string" or file == "" then
+		return {}
+	end
+	local seen = {}
+	local items = {}
+	local function add(path)
+		if not seen[path] then
+			seen[path] = true
+			items[#items + 1] = path
+		end
+	end
+	add(file)
+	if file:match("%.js$") then
+		add(file:gsub("%.js$", ".ts"))
+		add(file:gsub("%.js$", ".tsx"))
+	elseif file:match("%.ts$") then
+		add(file:gsub("%.ts$", ".tsx"))
+		add(file:gsub("%.ts$", ".js"))
+	elseif file:match("%.jsx$") then
+		add(file:gsub("%.jsx$", ".tsx"))
+	elseif file:match("%.tsx$") then
+		add(file:gsub("%.tsx$", ".ts"))
+		add(file:gsub("%.tsx$", ".jsx"))
+	end
+	return items
+end
+
 local function strip_ts_suffix(filename)
 	if type(filename) ~= "string" then
 		return filename
@@ -133,132 +161,122 @@ local function strip_ts_suffix(filename)
 	return filename
 end
 
-local function has_console(buf, line0)
-	local line = vim.api.nvim_buf_get_lines(buf, line0, line0 + 1, false)[1]
-	if not line then
-		return false
-	end
-	return line:match("console%.") ~= nil
+local function line_contains_console(line)
+	return line and line:find("console%.") ~= nil
 end
 
-local function has_console_method(buf, line0, method)
-	if not method or method == "" then
-		return false
+local function collect_terms(args, timer)
+	local terms = {}
+	local function push(term)
+		if type(term) ~= "string" then
+			return
+		end
+		local trimmed = term:match("^%s*(.-)%s*$") or term
+		if #trimmed >= 3 then
+			terms[#terms + 1] = trimmed
+		end
 	end
-	local line = vim.api.nvim_buf_get_lines(buf, line0, line0 + 1, false)[1]
-	if not line then
-		return false
+	if timer and type(timer.label) == "string" then
+		push(timer.label)
 	end
-	local literal = "console." .. method
-	return line:find(literal, 1, true) ~= nil
-end
-
-local function has_console_term(buf, line0, term)
-	if not term or term == "" then
-		return false
-	end
-	local line = vim.api.nvim_buf_get_lines(buf, line0, line0 + 1, false)[1]
-	if not line then
-		return false
-	end
-	if not line:find("console%.") then
-		return false
-	end
-	return line:find(term, 1, true) ~= nil
-end
-
-local function extract_search_term(args)
-	if type(args) ~= "table" then
-		return nil
-	end
-	for _, value in ipairs(args) do
-		if type(value) == "string" then
-			local trimmed = value:match("^%s*(.-)%s*$") or value
-			if #trimmed >= 3 then
-				return trimmed
+	if type(args) == "table" then
+		for _, value in ipairs(args) do
+			if type(value) == "string" then
+				push(value)
+				break
 			end
 		end
 	end
-	return nil
+	return terms
 end
 
-local function line_matches(buf, line0, method, term)
-	local line = vim.api.nvim_buf_get_lines(buf, line0, line0 + 1, false)[1]
-	if not line then
-		return false
-	end
-	if not line:find("console%.") then
-		return false
-	end
-	if method and method ~= "" and not line:find("console." .. method, 1, true) then
-		return false
-	end
-	if term and term ~= "" and not line:find(term, 1, true) then
-		return false
-	end
-	return true
-end
-
-local function adjust_line(buf, line0, method, args)
-	if has_console_method(buf, line0, method) then
-		return line0
-	end
-	if has_console(buf, line0) then
-		return line0
-	end
+local function gather_candidates(buf, method, terms)
 	local max = vim.api.nvim_buf_line_count(buf)
-	local term = extract_search_term(args)
-	if term then
-		local best, best_dist = nil, nil
-		for idx = 0, max - 1 do
-			if has_console_term(buf, idx, term) then
-				local dist = math.abs(idx - line0)
-				if not best or dist < best_dist then
-					best = idx
-					best_dist = dist
+	local method_literal = method and ("console." .. method) or nil
+	local results = {}
+	local method_match_found = false
+	local term_match_found = false
+	for idx = 0, max - 1 do
+		local line = vim.api.nvim_buf_get_lines(buf, idx, idx + 1, false)[1]
+		if line_contains_console(line) then
+			local col = line:find("console%.") or 1
+			local method_match = false
+			if method_literal then
+				local mcol = line:find(method_literal, 1, true)
+				if mcol then
+					method_match = true
+					col = mcol
 				end
 			end
-		end
-		if best then
-			return best
-		end
-	end
-	local search_limit = 12
-	for offset = 1, search_limit do
-		local down = line0 + offset
-		if down < max and has_console_method(buf, down, method) then
-			return down
-		end
-		local up = line0 - offset
-		if up >= 0 and has_console_method(buf, up, method) then
-			return up
-		end
-	end
-	for offset = 1, search_limit do
-		local down = line0 + offset
-		if down < max and has_console(buf, down) then
-			return down
-		end
-		local up = line0 - offset
-		if up >= 0 and has_console(buf, up) then
-			return up
+			local term_match = false
+			if terms and #terms > 0 then
+				for _, term in ipairs(terms) do
+					if line:find(term, 1, true) then
+						term_match = true
+						break
+					end
+				end
+			end
+			if method_match then
+				method_match_found = true
+			end
+			if term_match then
+				term_match_found = true
+			end
+			results[#results + 1] = {
+				line = idx,
+				column = col - 1,
+				method_match = method_match,
+				term_match = term_match,
+			}
 		end
 	end
-	local best_line = nil
-	local best_dist = nil
-	for idx = 0, max - 1 do
-		if line_matches(buf, idx, method, term) then
-			local dist = math.abs(idx - line0)
-			if not best_line or dist < best_dist then
-				best_line = idx
-				best_dist = dist
+	if method_literal and method_match_found then
+		local filtered = {}
+		for _, item in ipairs(results) do
+			if item.method_match then
+				filtered[#filtered + 1] = item
 			end
 		end
+		if #filtered > 0 then
+			results = filtered
+		end
 	end
-	if best_line then
-		return best_line
+	if terms and #terms > 0 and term_match_found then
+		local filtered = {}
+		for _, item in ipairs(results) do
+			if item.term_match then
+				filtered[#filtered + 1] = item
+			end
+		end
+		if #filtered > 0 then
+			results = filtered
+		end
 	end
-	return line0
+	return results
+end
+
+local function adjust_line(buf, line0, method, args, timer, column)
+	local candidates = gather_candidates(buf, method, collect_terms(args, timer))
+	if #candidates == 0 then
+		return line0
+	end
+	local target_col = column and (column - 1) or nil
+	local best = candidates[1]
+	local best_score = math.huge
+	for _, candidate in ipairs(candidates) do
+		local line_dist = math.abs(candidate.line - line0)
+		local col_dist = 0
+		if target_col then
+			col_dist = math.abs((candidate.column or 0) - target_col)
+		end
+		local score = line_dist * 1000 + col_dist
+		if score < best_score then
+			best_score = score
+			best = candidate
+		end
+	end
+	return best.line or line0
 end
 
 local function set_line_text(buf, line0, entry, hl)
@@ -316,6 +334,24 @@ function M.render_message(msg)
 	elseif type(msg.trace) == "table" and #msg.trace == 0 then
 		display_payload = "trace"
 	end
+	local timer_info = msg.time
+	if type(timer_info) == "table" then
+		local label = timer_info.label or "timer"
+		if timer_info.duration_ms then
+			local ms = tonumber(timer_info.duration_ms) or 0
+			display_payload = string.format("%s: %.3f ms", label, ms)
+			icon = "⏱"
+			hl = "DiagnosticInfo"
+		elseif timer_info.missing then
+			display_payload = string.format("Timer '%s' not found", label)
+			icon = "⚠"
+			hl = "DiagnosticWarn"
+		else
+			display_payload = label
+			icon = "⏱"
+			hl = "DiagnosticInfo"
+		end
+	end
 	display_payload = truncate(display_payload, state.opts.max_len)
 	local history_entry = msg._console_inline_history_entry
 	if not history_entry then
@@ -332,6 +368,7 @@ function M.render_message(msg)
 			highlight = hl,
 			method = msg.method,
 			trace = msg.trace,
+			time = msg.time,
 			timestamp = os.time(),
 		}
 		history.record(history_entry)
@@ -349,6 +386,7 @@ function M.render_message(msg)
 		history_entry.highlight = hl
 		history_entry.method = msg.method
 		history_entry.trace = msg.trace
+		history_entry.time = msg.time
 		if not history_entry.timestamp then
 			history_entry.timestamp = os.time()
 		end
@@ -357,14 +395,14 @@ function M.render_message(msg)
 	history_entry.render_line = msg.line
 
 	local buf_module = require("console_inline.buf")
-	local buf = buf_module.find_buf_by_path(msg.file)
-	if not buf then
-		local remapped = strip_ts_suffix(msg.file)
-		if remapped ~= msg.file then
-			buf = buf_module.find_buf_by_path(remapped)
-			if buf then
-				msg.file = remapped
+	local buf = nil
+	for _, path in ipairs(candidate_paths(msg.file)) do
+		buf = buf_module.find_buf_by_path(path)
+		if buf then
+			if path ~= msg.file then
+				msg.file = path
 			end
+			break
 		end
 	end
 	if not buf then
@@ -389,7 +427,7 @@ function M.render_message(msg)
 	end
 
 	local line0 = clamp_line(buf, (msg.line or 1) - 1)
-	line0 = adjust_line(buf, line0, msg.method, msg.args)
+	line0 = adjust_line(buf, line0, msg.method, msg.args, msg.time, msg.column)
 	history_entry.render_line = line0 + 1
 	history_entry.buf = buf
 
@@ -419,6 +457,7 @@ function M.render_message(msg)
 		highlight = hl,
 		method = msg.method,
 		trace = msg.trace,
+		time = msg.time,
 	}
 	set_line_text(buf, line0, entry, hl)
 end

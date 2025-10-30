@@ -121,6 +121,19 @@ return function()
 						lines[#lines + 1] = string.format("[trace %d] %s", idx, tostring(frame))
 					end
 				end
+				if value and type(value.time) == "table" and value.time.label then
+					local timer = value.time
+					local label = timer.label or "timer"
+					local entry
+					if timer.duration_ms then
+						entry = string.format("[time] %s: %.3f ms", label, tonumber(timer.duration_ms) or 0)
+					elseif timer.missing then
+						entry = string.format("[time] Timer '%s' not found", label)
+					else
+						entry = string.format("[time] %s", label)
+					end
+					lines[#lines + 1] = entry
+				end
 				if #lines == 0 then
 					lines = { "<empty>" }
 				end
