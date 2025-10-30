@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.1](https://github.com/CoMfUcIoS/console-inline.nvim/compare/@console-inline/service-v1.3.0...@console-inline/service-v1.3.1) (2025-10-30)
+
+
+### Documentation
+
+* **readme:** add Console Ninja inspiration note ([6ba0fe7](https://github.com/CoMfUcIoS/console-inline.nvim/commit/6ba0fe7eede12ee0f947f177c4f48fa1a5270df8))
+
 ## [1.3.0](https://github.com/CoMfUcIoS/console-inline.nvim/compare/@console-inline/service-v1.2.1...@console-inline/service-v1.3.0) (2025-10-29)
 
 
