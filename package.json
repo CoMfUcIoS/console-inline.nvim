@@ -1,5 +1,6 @@
 {
   "name": "console-inline.nvim-dev",
+  "license": "GPL-3.0-or-later",
   "private": true,
   "type": "module",
   "scripts": {

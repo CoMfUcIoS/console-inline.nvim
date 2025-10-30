@@ -2,6 +2,7 @@
 
 ![CI](https://github.com/comfucios/console-inline.nvim/actions/workflows/ci.yml/badge.svg)
 ![Lint](https://github.com/comfucios/console-inline.nvim/actions/workflows/lint.yml/badge.svg)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
 Zero-config Neovim plugin that shows `console.log/info/warn/error` inline as virtual text at the emitting source line.
 
@@ -247,7 +248,8 @@ GitHub Actions workflow that installs, builds, and publishes
 
 ## License
 
-GPLv3 License. See LICENSE for details.
+GPL-3.0-or-later. See [LICENSE](./LICENSE).
+© 2025 Ioannis Karasavvaidis
 
 ## Changelog
 
