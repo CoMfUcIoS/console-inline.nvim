@@ -79,6 +79,20 @@ local M = {}
 
 function M.setup(opts)
 	state.opts = vim.tbl_deep_extend("force", state.opts, opts or {})
+	if state.opts.hover == false then
+		state.opts.hover = { enabled = false }
+	elseif type(state.opts.hover) ~= "table" then
+		state.opts.hover = { enabled = false }
+	else
+		state.opts.hover.events = state.opts.hover.events or { "CursorHold" }
+		state.opts.hover.hide_events = state.opts.hover.hide_events
+			or { "CursorMoved", "CursorMovedI", "InsertEnter", "BufLeave" }
+		state.opts.hover.border = state.opts.hover.border or "rounded"
+		state.opts.hover.focusable = state.opts.hover.focusable ~= false and state.opts.hover.focusable or false
+		state.opts.hover.relative = state.opts.hover.relative or "cursor"
+		state.opts.hover.row = state.opts.hover.row ~= nil and state.opts.hover.row or 1
+		state.opts.hover.col = state.opts.hover.col ~= nil and state.opts.hover.col or 0
+	end
 	if type(state.opts.popup_formatter) ~= "function" then
 		state.opts.popup_formatter = require("console_inline.format").default
 	end
@@ -154,6 +168,31 @@ function M.setup(opts)
 			flush_queued_messages(fname)
 		end,
 	})
+
+	local hover_opts = state.opts.hover or {}
+	if hover_opts.enabled ~= false then
+		local hover_group = vim.api.nvim_create_augroup("ConsoleInlineHover", { clear = true })
+		local events = hover_opts.events or { "CursorHold" }
+		if type(events) == "string" then
+			events = { events }
+		end
+		local hide_events = hover_opts.hide_events or { "CursorMoved", "CursorMovedI", "InsertEnter", "BufLeave" }
+		if type(hide_events) == "string" then
+			hide_events = { hide_events }
+		end
+		vim.api.nvim_create_autocmd(events, {
+			group = hover_group,
+			callback = function()
+				render.maybe_show_hover()
+			end,
+		})
+		vim.api.nvim_create_autocmd(hide_events, {
+			group = hover_group,
+			callback = function()
+				render.close_hover_popup()
+			end,
+		})
+	end
 	vim.g.console_inline_lazy_setup_done = true
 end
 

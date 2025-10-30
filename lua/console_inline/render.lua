@@ -113,6 +113,90 @@ local function network_icon(kind)
 	return "⇢", "DiagnosticInfo"
 end
 
+local function build_popup_lines(entry)
+	local formatter = state.opts.popup_formatter or require("console_inline.format").default
+	local ok, result = pcall(formatter, entry)
+	local lines = {}
+	if ok and type(result) == "table" then
+		for _, line in ipairs(result) do
+			lines[#lines + 1] = tostring(line)
+		end
+	end
+	if #lines == 0 then
+		local fallback = entry.payload or entry.text or ""
+		if type(fallback) == "string" and fallback ~= "" then
+			for _, line in ipairs(vim.split(fallback, "\n", true)) do
+				lines[#lines + 1] = tostring(line)
+			end
+		end
+	end
+	if entry.count and entry.count > 1 then
+		table.insert(lines, 1, string.format("[%dx repeats]", entry.count))
+	end
+	if #lines == 0 then
+		lines = { "<empty>" }
+	end
+	return lines
+end
+
+local function popup_dimensions(lines)
+	local width = 0
+	for _, line in ipairs(lines) do
+		width = math.max(width, vim.fn.strdisplaywidth(line))
+	end
+	local max_columns = math.max(1, math.floor(vim.o.columns * 0.8))
+	local max_lines = math.max(1, math.floor(vim.o.lines * 0.5))
+	width = math.min(math.max(width + 4, 40), max_columns)
+	local height = math.min(#lines, max_lines)
+	if height <= 0 then
+		height = 1
+	end
+	return width, height
+end
+
+local function open_popup(entry, opts)
+	local lines = build_popup_lines(entry)
+	local width, height = popup_dimensions(lines)
+	local buf = vim.api.nvim_create_buf(false, true)
+	vim.api.nvim_buf_set_option(buf, "bufhidden", "wipe")
+	vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+	local win_opts = {
+		relative = opts.relative or "cursor",
+		row = opts.row or 1,
+		col = opts.col or 0,
+		width = width,
+		height = height,
+		style = opts.style or "minimal",
+		border = opts.border or "rounded",
+		focusable = opts.focusable ~= false,
+		noautocmd = opts.noautocmd ~= false,
+	}
+	if opts.anchor then
+		win_opts.anchor = opts.anchor
+	end
+	if opts.zindex then
+		win_opts.zindex = opts.zindex
+	end
+	local enter = opts.enter
+	if enter == nil then
+		enter = true
+	end
+	local ok, win = pcall(vim.api.nvim_open_win, buf, enter, win_opts)
+	if not ok then
+		pcall(vim.api.nvim_buf_delete, buf, { force = true })
+		log.debug("open_popup failed", win)
+		return nil
+	end
+	vim.api.nvim_buf_set_option(buf, "modifiable", false)
+	return {
+		win = win,
+		buf = buf,
+		lines = lines,
+		config = win_opts,
+		entry = entry,
+	}
+end
+
 local function matches_pattern(text, rule)
 	local pattern = rule.pattern
 	if type(pattern) ~= "string" or pattern == "" then
@@ -520,12 +604,18 @@ function M.render_message(msg)
 		time = msg.time,
 	}
 	set_line_text(buf, line0, entry, hl)
+	if state.hover_popup and state.hover_popup.entry == history_entry then
+		M.refresh_hover_popup(history_entry)
+	end
 end
 
 function M.clear_current_buffer()
 	vim.api.nvim_buf_clear_namespace(0, state.ns, 0, -1)
 	state.extmarks_by_buf_line[vim.api.nvim_get_current_buf()] = nil
 	state.last_msg_by_buf_line[vim.api.nvim_get_current_buf()] = nil
+	if state.hover_popup and state.hover_popup.source_buf == vim.api.nvim_get_current_buf() then
+		M.close_hover_popup()
+	end
 end
 
 function M.get_entry_at_cursor()
@@ -545,6 +635,128 @@ function M.copy_current_line()
 	else
 		vim.notify("console-inline: nothing to copy", vim.log.levels.WARN)
 	end
+end
+
+function M.open_entry_popup(entry, opts)
+	if not entry then
+		return nil
+	end
+	opts = opts or {}
+	local popup = open_popup(entry, opts)
+	if not popup then
+		return nil
+	end
+	if opts.interactive ~= false then
+		local function close()
+			if vim.api.nvim_win_is_valid(popup.win) then
+				vim.api.nvim_win_close(popup.win, true)
+			end
+		end
+		vim.keymap.set("n", "q", close, { buffer = popup.buf, nowait = true })
+		vim.keymap.set("n", "<Esc>", close, { buffer = popup.buf, nowait = true })
+	end
+	return popup
+end
+
+function M.open_standalone_popup(entry)
+	M.close_hover_popup()
+	return M.open_entry_popup(entry, {
+		interactive = true,
+		focusable = true,
+		enter = true,
+		noautocmd = false,
+		zindex = 80,
+	})
+end
+
+function M.close_hover_popup()
+	local hover = state.hover_popup
+	if not hover then
+		return
+	end
+	if hover.win and vim.api.nvim_win_is_valid(hover.win) then
+		vim.api.nvim_win_close(hover.win, true)
+	end
+	if hover.buf and vim.api.nvim_buf_is_valid(hover.buf) then
+		pcall(vim.api.nvim_buf_delete, hover.buf, { force = true })
+	end
+	state.hover_popup = nil
+end
+
+function M.show_hover_popup(entry, opts)
+	local hover_opts = state.opts.hover or {}
+	if hover_opts.enabled == false then
+		return nil
+	end
+	local config = vim.tbl_extend("force", {
+		interactive = false,
+		focusable = hover_opts.focusable,
+		border = hover_opts.border,
+		relative = hover_opts.relative,
+		row = hover_opts.row,
+		col = hover_opts.col,
+		enter = false,
+		noautocmd = true,
+		zindex = hover_opts.zindex or 60,
+	}, opts or {})
+	local popup = M.open_entry_popup(entry, config)
+	if not popup then
+		return nil
+	end
+	state.hover_popup = {
+		win = popup.win,
+		buf = popup.buf,
+		entry = entry,
+		config = config,
+		source_buf = vim.api.nvim_get_current_buf(),
+		line0 = vim.api.nvim_win_get_cursor(0)[1] - 1,
+	}
+	return popup.win
+end
+
+function M.refresh_hover_popup(entry)
+	local hover = state.hover_popup
+	if not hover or not hover.entry then
+		return
+	end
+	if entry and hover.entry ~= entry then
+		return
+	end
+	local entry_ref = hover.entry
+	local config = hover.config
+	M.close_hover_popup()
+	if entry_ref then
+		M.show_hover_popup(entry_ref, config)
+	end
+end
+
+function M.maybe_show_hover()
+	local hover_opts = state.opts.hover or {}
+	if hover_opts.enabled == false then
+		return
+	end
+	if vim.tbl_contains({ "nofile", "prompt", "terminal" }, vim.bo.buftype) then
+		M.close_hover_popup()
+		return
+	end
+	local mode = vim.api.nvim_get_mode().mode
+	if mode:match("^i") or mode:match("^v") or mode == "R" then
+		M.close_hover_popup()
+		return
+	end
+	local buf = vim.api.nvim_get_current_buf()
+	local line0 = vim.api.nvim_win_get_cursor(0)[1] - 1
+	local entry = state.last_msg_by_buf_line[buf] and state.last_msg_by_buf_line[buf][line0]
+	if not entry then
+		M.close_hover_popup()
+		return
+	end
+	local hover = state.hover_popup
+	if hover and hover.entry == entry and hover.win and vim.api.nvim_win_is_valid(hover.win) then
+		return
+	end
+	M.close_hover_popup()
+	M.show_hover_popup(entry)
 end
 
 return M

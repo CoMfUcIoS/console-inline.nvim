@@ -32,52 +32,10 @@ return function()
 			vim.notify("console-inline: no message at cursor", vim.log.levels.WARN)
 			return
 		end
-		local buf = vim.api.nvim_create_buf(false, true)
-		vim.api.nvim_buf_set_option(buf, "bufhidden", "wipe")
-		local formatter = state.opts.popup_formatter or require("console_inline.format").default
-		local ok, result = pcall(formatter, entry)
-		local lines = {}
-		if ok and type(result) == "table" then
-			for _, line in ipairs(result) do
-				lines[#lines + 1] = tostring(line)
-			end
-		else
-			lines = vim.split(entry.payload or entry.text or "", "\n", true)
+		local popup = render.open_standalone_popup(entry)
+		if not popup then
+			vim.notify("console-inline: failed to open popup", vim.log.levels.ERROR)
 		end
-		if entry.count and entry.count > 1 then
-			table.insert(lines, 1, string.format("[%dx repeats]", entry.count))
-		end
-		if #lines == 0 then
-			lines = { "<empty>" }
-		end
-		vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-		local width = 0
-		for _, line in ipairs(lines) do
-			width = math.max(width, vim.fn.strdisplaywidth(line))
-		end
-		width = math.min(math.max(width + 4, 40), math.floor(vim.o.columns * 0.8))
-		local height = math.min(#lines, math.floor(vim.o.lines * 0.5))
-		local opts = {
-			relative = "cursor",
-			row = 1,
-			col = 0,
-			width = width,
-			height = math.max(height, 1),
-			style = "minimal",
-			border = "rounded",
-		}
-		local win = vim.api.nvim_open_win(buf, true, opts)
-		vim.api.nvim_buf_set_option(buf, "modifiable", false)
-		vim.keymap.set("n", "q", function()
-			if vim.api.nvim_win_is_valid(win) then
-				vim.api.nvim_win_close(win, true)
-			end
-		end, { buffer = buf, nowait = true })
-		vim.keymap.set("n", "<Esc>", function()
-			if vim.api.nvim_win_is_valid(win) then
-				vim.api.nvim_win_close(win, true)
-			end
-		end, { buffer = buf, nowait = true })
 	end, {})
 
 	vim.api.nvim_create_user_command("ConsoleInlineHistory", function()
