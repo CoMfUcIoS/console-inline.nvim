@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.1](https://github.com/CoMfUcIoS/console-inline.nvim/compare/console-inline.nvim-v1.1.0...console-inline.nvim-v1.1.1) (2025-10-30)
+
+
+### Documentation
+
+* **readme:** add Console Ninja inspiration note ([6ba0fe7](https://github.com/CoMfUcIoS/console-inline.nvim/commit/6ba0fe7eede12ee0f947f177c4f48fa1a5270df8))
+
 ## [1.1.0](https://github.com/CoMfUcIoS/console-inline.nvim/compare/console-inline.nvim-v1.0.0...console-inline.nvim-v1.1.0) (2025-10-29)
 
 
