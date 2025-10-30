@@ -151,16 +151,6 @@ local function candidate_paths(file)
 	return items
 end
 
-local function strip_ts_suffix(filename)
-	if type(filename) ~= "string" then
-		return filename
-	end
-	if filename:match("%.ts$") then
-		return filename:gsub("%.ts$", ".js")
-	end
-	return filename
-end
-
 local function line_contains_console(line)
 	return line and line:find("console%.") ~= nil
 end

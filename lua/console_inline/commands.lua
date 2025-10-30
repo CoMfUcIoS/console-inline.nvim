@@ -99,8 +99,8 @@ return function()
 		local formatter = state.opts.popup_formatter or require("console_inline.format").default
 		local entries = history.entries()
 		local previewer = previewers.new_buffer_previewer({
-			define_preview = function(self, entry)
-				local value = entry.value
+			define_preview = function(self, selection)
+				local value = selection.value
 				local lines
 				if value then
 					local ok_fmt, result = pcall(formatter, value)
@@ -124,15 +124,15 @@ return function()
 				if value and type(value.time) == "table" and value.time.label then
 					local timer = value.time
 					local label = timer.label or "timer"
-					local entry
+					local timer_entry
 					if timer.duration_ms then
-						entry = string.format("[time] %s: %.3f ms", label, tonumber(timer.duration_ms) or 0)
+						timer_entry = string.format("[time] %s: %.3f ms", label, tonumber(timer.duration_ms) or 0)
 					elseif timer.missing then
-						entry = string.format("[time] Timer '%s' not found", label)
+						timer_entry = string.format("[time] Timer '%s' not found", label)
 					else
-						entry = string.format("[time] %s", label)
+						timer_entry = string.format("[time] %s", label)
 					end
-					lines[#lines + 1] = entry
+					lines[#lines + 1] = timer_entry
 				end
 				if #lines == 0 then
 					lines = { "<empty>" }
