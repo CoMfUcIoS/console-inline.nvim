@@ -239,6 +239,16 @@ function M.setup(opts)
 			vim.notify("console-inline: indexing disabled via opts.use_index", vim.log.levels.WARN)
 			return
 		end
+		local buf = vim.api.nvim_get_current_buf()
+		local ok_index, index = pcall(require, "console_inline.index")
+		if ok_index and index.reindex then
+			index.reindex(buf)
+			vim.notify("console-inline: reindexed buffer " .. buf)
+		else
+			vim.notify("console-inline: indexing not available", vim.log.levels.WARN)
+		end
+	end, { desc = "Reindex current buffer for console-inline" })
+
 	-- Benchmark command: synthetic candidate resolution performance
 	vim.api.nvim_create_user_command("ConsoleInlineBenchmark", function(cmd_opts)
 		local iterations = tonumber(cmd_opts.args) or 100

@@ -3,6 +3,9 @@
   "license": "GPL-3.0-or-later",
   "private": true,
   "type": "module",
+  "workspaces": [
+    "packages/service"
+  ],
   "scripts": {
     "test": "vitest run --passWithNoTests",
     "build:relay": "esbuild packages/service/src/relay-server.ts --bundle --platform=node --format=cjs --outfile=relay/auto-relay.cjs"
