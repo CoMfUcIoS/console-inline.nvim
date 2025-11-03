@@ -188,4 +188,16 @@ function M.lookup(buf, tokens, method)
 	return candidate_lines
 end
 
+function M.reindex(buf)
+	if not vim.api.nvim_buf_is_loaded(buf) then
+		return
+	end
+	-- Clear the existing index for this buffer
+	if state.buffer_index and state.buffer_index[buf] then
+		state.buffer_index[buf] = nil
+	end
+	-- Rebuild from scratch
+	M.build(buf)
+end
+
 return M

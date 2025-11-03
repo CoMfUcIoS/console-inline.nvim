@@ -135,19 +135,12 @@ local function build_context(buf, tree, lang)
 			mark_lines("has_fetch_call")
 		elseif cap == "error_new" then
 			mark_lines("has_error_new")
-		elseif cap == "promise_reject" or cap == "reject_method" then
-			-- Check if it's actually Promise.reject
-			if cap == "promise_obj" then
-				local text = vim.treesitter.get_node_text(node, buf)
-				if text == "Promise" then
-					mark_lines("has_promise_reject")
-				end
-			elseif cap == "reject_method" then
-				local text = vim.treesitter.get_node_text(node, buf)
-				if text == "reject" then
-					mark_lines("has_promise_reject")
-				end
-			else
+		elseif cap == "promise_reject" then
+			mark_lines("has_promise_reject")
+		elseif cap == "promise_obj" or cap == "reject_method" then
+			-- Verify it's actually Promise.reject
+			local text = vim.treesitter.get_node_text(node, buf)
+			if (cap == "promise_obj" and text == "Promise") or (cap == "reject_method" and text == "reject") then
 				mark_lines("has_promise_reject")
 			end
 		elseif cap == "throw_stmt" then
