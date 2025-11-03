@@ -1402,7 +1402,8 @@ function isServiceFrame(file: string) {
   return (
     lower.includes("@console-inline/service") ||
     lower.includes("console-inline_service") ||
-    lower.includes("console-inline.nvim") ||
+    lower.includes("/packages/service/") ||
+    lower.includes("\\packages\\service\\") ||
     lower.includes("auto-relay") ||
     lower.includes("relay-server")
   );

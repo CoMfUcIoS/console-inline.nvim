@@ -325,6 +325,15 @@ local function line_contains_console(line)
 	return line and line:find("console%.") ~= nil
 end
 
+local function line_contains_console_method(line, method)
+	if not line or not method then
+		return false
+	end
+	-- Match console.method, handling both full calls and inline arrow functions
+	local pattern = "console%." .. method
+	return line:find(pattern, 1, true) ~= nil
+end
+
 -- Extract candidate anchor terms from arguments/timer label with basic stop-word filtering.
 local stopwords = {
 	["error"] = true,
@@ -1011,21 +1020,21 @@ function M.render_message(msg)
 			local max = vim.api.nvim_buf_line_count(buf)
 			local candidates_found = {}
 
-		-- Try Tree-sitter first if available
-		local use_ts = state.opts.use_treesitter ~= false
-		local has_ts, ts_mod = pcall(require, "console_inline.treesitter")
-		if use_ts and has_ts then
-			-- Collect Tree-sitter contexts for forward lines
-			for offset = 1, 30 do
-				local check_line = base_line + offset
-				if check_line >= 0 and check_line < max then
-					local ctx = ts_mod.context_for(buf, check_line)
-					if ctx and (ctx.has_throw_stmt or ctx.has_error_new or ctx.has_promise_reject) then
-						table.insert(candidates_found, { line = check_line, offset = offset, from_ts = true })
+			-- Try Tree-sitter first if available
+			local use_ts = state.opts.use_treesitter ~= false
+			local has_ts, ts_mod = pcall(require, "console_inline.treesitter")
+			if use_ts and has_ts then
+				-- Collect Tree-sitter contexts for forward lines
+				for offset = 1, 30 do
+					local check_line = base_line + offset
+					if check_line >= 0 and check_line < max then
+						local ctx = ts_mod.context_for(buf, check_line)
+						if ctx and (ctx.has_throw_stmt or ctx.has_error_new or ctx.has_promise_reject) then
+							table.insert(candidates_found, { line = check_line, offset = offset, from_ts = true })
+						end
 					end
 				end
-			end
-		end			-- If Tree-sitter didn't find anything, fall back to regex
+			end -- If Tree-sitter didn't find anything, fall back to regex
 			if #candidates_found == 0 then
 				for offset = 1, 30 do
 					local check_line = base_line + offset
@@ -1088,11 +1097,22 @@ function M.render_message(msg)
 		line0 = base_line
 	else
 		-- Normal console.log/etc - use full adjustment logic
-		-- For console.error/warn, check if base line already has console call before adjusting
+		-- For console methods, check if base line already has the exact console call before adjusting
 		local skip_adjustment = false
-		if method == "error" or method == "warn" then
+		if
+			method
+			and (
+				method == "error"
+				or method == "warn"
+				or method == "log"
+				or method == "info"
+				or method == "trace"
+				or method == "timeEnd"
+				or method == "timeLog"
+			)
+		then
 			local base_text = vim.api.nvim_buf_get_lines(buf, base_line, base_line + 1, false)[1]
-			if base_text and base_text:find("console%." .. method) then
+			if base_text and line_contains_console_method(base_text, method) then
 				skip_adjustment = true
 				log.debug(
 					string.format("console.%s: base line contains console.%s call, skipping adjustment", method, method)
