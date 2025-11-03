@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.7.0](https://github.com/CoMfUcIoS/console-inline.nvim/compare/@console-inline/service-v1.6.0...@console-inline/service-v1.7.0) (2025-11-03)
+
+
+### Features
+
+* add advanced placement and source map features ([47cb28b](https://github.com/CoMfUcIoS/console-inline.nvim/commit/47cb28beab05dba72ce4065dde0c5d4c2f80c7bf))
+* add mapping_status when source maps are disabled ([94659c0](https://github.com/CoMfUcIoS/console-inline.nvim/commit/94659c06e8357fa496bf1235ddf4adf95da76e0b))
+* **config:** add advanced opts to README example ([8da73bd](https://github.com/CoMfUcIoS/console-inline.nvim/commit/8da73bd59c23aa8493cd5511f50b62c2c3a2f36a))
+
+
+### Bug Fixes
+
+* **render:** improve console method detection logic ([c187813](https://github.com/CoMfUcIoS/console-inline.nvim/commit/c1878130b5aaa02b9db5d40ffbbaf6b1d8397983))
+
 ## [1.6.0](https://github.com/CoMfUcIoS/console-inline.nvim/compare/@console-inline/service-v1.5.0...@console-inline/service-v1.6.0) (2025-10-30)
 
 
