@@ -754,6 +754,24 @@ function captureCallSite(options?: { skip?: number }): CallSite {
     }
   }
 
+  // When source maps are explicitly disabled or not applicable, return with 'miss' status
+  // This ensures mapping_status is always present when resolution was considered
+  const needsStatus =
+    isBrowser ||
+    (isNode && process.env.CONSOLE_INLINE_SOURCE_MAPS !== undefined);
+  if (needsStatus) {
+    return {
+      file,
+      line,
+      column,
+      stack: stackString,
+      mapping_status: "miss",
+      original_file: file,
+      original_line: line,
+      original_column: column,
+    };
+  }
+
   return { file, line, column, stack: stackString };
 }
 
@@ -1778,6 +1796,17 @@ function patchConsole() {
         column,
         stack: stackString,
       };
+
+      // Include source map metadata if available
+      if (callsite.mapping_status) {
+        payload.mapping_status = callsite.mapping_status;
+      }
+      if (callsite.original_file) {
+        payload.original_file = callsite.original_file;
+        payload.original_line = callsite.original_line;
+        payload.original_column = callsite.original_column;
+      }
+
       if (traceFrames && traceFrames.length > 0) {
         payload.trace = traceFrames;
       }
@@ -1850,4 +1879,5 @@ export const __testing__ = {
   formatNetworkSummary,
   determineNetworkKind,
   buildNetworkPayload,
+  captureCallSite,
 };

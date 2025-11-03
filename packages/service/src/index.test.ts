@@ -250,4 +250,24 @@ describe("network helpers", () => {
     expect(payload.args[0]).toBeTypeOf("string");
     expect(payload.args[1]).toMatchObject({ status: 404, method: "POST" });
   });
+
+  it("includes mapping_status when source maps are disabled", async () => {
+    const prevEnv = process.env.CONSOLE_INLINE_SOURCE_MAPS;
+    process.env.CONSOLE_INLINE_SOURCE_MAPS = "false";
+
+    vi.resetModules();
+    const { captureCallSite } = await loadTesting();
+    const callsite = captureCallSite();
+
+    expect(callsite.mapping_status).toBe("miss");
+    expect(callsite.original_file).toBe(callsite.file);
+    expect(callsite.original_line).toBe(callsite.line);
+    expect(callsite.original_column).toBe(callsite.column);
+
+    if (prevEnv !== undefined) {
+      process.env.CONSOLE_INLINE_SOURCE_MAPS = prevEnv;
+    } else {
+      delete process.env.CONSOLE_INLINE_SOURCE_MAPS;
+    }
+  });
 });
