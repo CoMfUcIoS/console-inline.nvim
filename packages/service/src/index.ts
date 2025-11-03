@@ -19,6 +19,10 @@
 // @console-inline/service: Patch console methods and send output to relay
 // Auto-start relay server for Neovim integration (Node only)
 
+// Import trace-mapping for browser source map support (will be bundled by Vite)
+// @ts-ignore - Conditional import for browser environments
+import * as traceMapping from "@jridgewell/trace-mapping";
+
 // Detect runtime
 const isBrowser =
   typeof window !== "undefined" && typeof window.document !== "undefined";
@@ -184,6 +188,10 @@ type CallSite = {
   line: number;
   column: number;
   stack?: string;
+  original_file?: string;
+  original_line?: number;
+  original_column?: number;
+  mapping_status?: "hit" | "miss" | "pending";
 };
 
 type NetworkStage = "success" | "error";
@@ -295,6 +303,354 @@ const debug = (...args: unknown[]) => {
   originalDebug("[console-inline]", ...args);
 };
 
+// ============================================================================
+// Browser Source Map Resolution
+// ============================================================================
+
+// Cache for source maps and fetch promises
+const browserSourceMapCache = new Map<string, any>(); // file URL -> parsed source map JSON
+const browserMapFetchPromises = new Map<string, Promise<void>>(); // file URL -> ongoing fetch promise
+let sourceMapInitialized = false;
+let sourceMapsEnabledCache: boolean | null = null; // Memoize to avoid spam logging
+
+// Check if source map resolution should be enabled
+function shouldResolveBrowserSourceMaps(): boolean {
+  if (sourceMapsEnabledCache !== null) return sourceMapsEnabledCache;
+
+  if (!isBrowser) {
+    sourceMapsEnabledCache = false;
+    return false;
+  }
+
+  // Check for force-enable flag in globalThis
+  if (
+    typeof globalThis !== "undefined" &&
+    (globalThis as any).__CONSOLE_INLINE_FORCE_SOURCEMAPS__
+  ) {
+    originalDebug(
+      "[console-inline] Source maps FORCE ENABLED via globalThis.__CONSOLE_INLINE_FORCE_SOURCEMAPS__",
+    );
+    sourceMapsEnabledCache = true;
+    return true;
+  }
+
+  const env = typeof process !== "undefined" ? process.env : undefined;
+  const toggle = env?.CONSOLE_INLINE_SOURCE_MAPS;
+  if (toggle) {
+    const val = toggle.trim().toLowerCase();
+    if (["0", "false", "off", "no", "disabled"].includes(val)) {
+      sourceMapsEnabledCache = false;
+      return false;
+    }
+    if (["1", "true", "on", "yes", "enabled"].includes(val)) {
+      sourceMapsEnabledCache = true;
+      return true;
+    }
+  }
+  // Enable by default in development environments (browser and Node)
+  sourceMapsEnabledCache = devEnvironment;
+  return devEnvironment;
+}
+
+// Fetch and cache source map for a given file URL
+async function fetchBrowserSourceMap(fileUrl: string): Promise<void> {
+  if (!shouldResolveBrowserSourceMaps()) return;
+
+  const cacheKey = fileUrl;
+
+  // Return existing map if cached
+  if (browserSourceMapCache.has(cacheKey)) return;
+
+  // Return existing fetch promise if in progress
+  const existingFetch = browserMapFetchPromises.get(fileUrl);
+  if (existingFetch) return existingFetch;
+
+  // Create new fetch promise
+  const fetchPromise = (async () => {
+    try {
+      debug(`[sourcemap] Fetching source map for: ${fileUrl}`);
+
+      // Fetch the source file
+      const response = await fetch(fileUrl);
+      if (!response.ok) {
+        debug(`[sourcemap] Failed to fetch file: ${response.status}`);
+        browserSourceMapCache.set(cacheKey, null);
+        return;
+      }
+
+      const sourceText = await response.text();
+
+      // Look for sourceMappingURL comment
+      const sourceMapUrlMatch = sourceText.match(
+        /[#@]\s*sourceMappingURL\s*=\s*(\S+)/,
+      );
+      if (!sourceMapUrlMatch) {
+        debug(`[sourcemap] No sourceMappingURL found in ${fileUrl}`);
+        browserSourceMapCache.set(cacheKey, null);
+        return;
+      }
+
+      const sourceMapRef = sourceMapUrlMatch[1];
+      let sourceMapJson: any = null;
+
+      if (sourceMapRef.startsWith("data:")) {
+        // Inline source map (base64)
+        debug(`[sourcemap] Found inline source map in ${fileUrl}`);
+        const dataUrlMatch = sourceMapRef.match(
+          /^data:application\/json;base64,(.+)$/,
+        );
+        if (dataUrlMatch) {
+          try {
+            const decoded = atob(dataUrlMatch[1]);
+            sourceMapJson = JSON.parse(decoded);
+            debug(`[sourcemap] Parsed inline source map for ${fileUrl}`);
+          } catch (err) {
+            debug(`[sourcemap] Failed to parse inline source map:`, err);
+          }
+        }
+      } else {
+        // External source map file
+        const sourceMapUrl = new URL(sourceMapRef, fileUrl).href;
+        debug(`[sourcemap] Fetching external source map: ${sourceMapUrl}`);
+        try {
+          const mapResponse = await fetch(sourceMapUrl);
+          if (mapResponse.ok) {
+            const mapText = await mapResponse.text();
+            sourceMapJson = JSON.parse(mapText);
+            debug(
+              `[sourcemap] Parsed external source map from ${sourceMapUrl}`,
+            );
+          }
+        } catch (err) {
+          debug(`[sourcemap] Failed to fetch/parse external source map:`, err);
+        }
+      }
+
+      browserSourceMapCache.set(cacheKey, sourceMapJson);
+    } catch (err) {
+      debug(`[sourcemap] Error fetching source map for ${fileUrl}:`, err);
+      browserSourceMapCache.set(cacheKey, null);
+    } finally {
+      // Clean up fetch promise
+      browserMapFetchPromises.delete(fileUrl);
+    }
+  })();
+
+  // Store promise for coordination
+  browserMapFetchPromises.set(fileUrl, fetchPromise);
+  return fetchPromise;
+}
+
+// Preload source maps for common entry points on page load
+async function preloadBrowserSourceMaps(): Promise<void> {
+  if (!isBrowser || !shouldResolveBrowserSourceMaps() || sourceMapInitialized)
+    return;
+
+  sourceMapInitialized = true;
+  originalDebug(
+    "[console-inline][sourcemap] ===== PRELOAD STARTED ===== devEnvironment:",
+    devEnvironment,
+    "isBrowser:",
+    isBrowser,
+  );
+  debug(
+    "[sourcemap] ===== PRELOAD STARTED ===== devEnvironment:",
+    devEnvironment,
+    "isBrowser:",
+    isBrowser,
+  );
+
+  const urlsToPreload: string[] = [];
+
+  // Collect script tags
+  if (typeof document !== "undefined") {
+    const scripts = document.querySelectorAll(
+      'script[src], script[type="module"]',
+    );
+    for (const script of Array.from(scripts)) {
+      const src = script.getAttribute("src");
+      if (!src) continue;
+
+      // Skip framework internals
+      if (
+        src.includes("node_modules") ||
+        src.includes("@vite") ||
+        src.includes("vite/dist")
+      ) {
+        continue;
+      }
+
+      try {
+        const fullUrl = new URL(src, globalThis.location?.href).href;
+        urlsToPreload.push(fullUrl);
+      } catch (e) {
+        // Ignore URL resolution errors
+      }
+    }
+  }
+
+  // Add common Vite entry points
+  if (globalThis.location?.origin) {
+    const commonPaths = [
+      "/src/main.ts",
+      "/src/main.tsx",
+      "/src/index.ts",
+      "/src/index.tsx",
+      "/main.ts",
+      "/main.tsx",
+      "/index.ts",
+      "/index.tsx",
+      "/src/App.tsx",
+      "/src/App.ts",
+    ];
+
+    for (const path of commonPaths) {
+      urlsToPreload.push(globalThis.location.origin + path);
+    }
+  }
+
+  originalDebug(
+    `[console-inline][sourcemap] Found ${urlsToPreload.length} URLs to preload:`,
+    urlsToPreload,
+  );
+  debug(
+    `[sourcemap] Found ${urlsToPreload.length} URLs to preload:`,
+    urlsToPreload,
+  );
+
+  try {
+    // Fetch all maps concurrently (ignore errors for speculative fetches)
+    const results = await Promise.allSettled(
+      urlsToPreload.map((url) => fetchBrowserSourceMap(url)),
+    );
+
+    const succeeded = results.filter((r) => r.status === "fulfilled").length;
+    const failed = results.filter((r) => r.status === "rejected").length;
+    originalDebug(
+      `[console-inline][sourcemap] ===== PRELOAD COMPLETE ===== ${succeeded} succeeded, ${failed} failed, cache size: ${browserSourceMapCache.size}`,
+    );
+    debug(
+      `[sourcemap] ===== PRELOAD COMPLETE ===== ${succeeded} succeeded, ${failed} failed, cache size: ${browserSourceMapCache.size}`,
+    );
+  } catch (err) {
+    originalDebug("[console-inline][sourcemap] ERROR in preload:", err);
+    debug("[sourcemap] ERROR in preload:", err);
+  }
+}
+
+// Normalize file URL for cache lookup (handle both full URLs and paths)
+function normalizeFileUrl(fileUrl: string): string[] {
+  const variants: string[] = [fileUrl]; // Always include original
+
+  try {
+    // If it's a path like "/main.ts", create full URL variant
+    if (fileUrl.startsWith("/") && !fileUrl.startsWith("//")) {
+      if (globalThis.location?.origin) {
+        variants.push(globalThis.location.origin + fileUrl);
+      }
+    }
+
+    // If it's a full URL, extract path variant
+    if (fileUrl.startsWith("http://") || fileUrl.startsWith("https://")) {
+      const url = new URL(fileUrl);
+      variants.push(url.pathname);
+    }
+  } catch (e) {
+    // Ignore URL parsing errors
+  }
+
+  return variants;
+}
+
+// Apply source map to transform generated coordinates to original
+function applyBrowserSourceMap(
+  fileUrl: string,
+  generatedLine: number,
+  generatedColumn: number,
+): { source: string; line: number; column: number } | null {
+  if (!shouldResolveBrowserSourceMaps()) return null;
+
+  originalDebug(
+    `[console-inline][sourcemap] applyBrowserSourceMap called with: ${fileUrl}:${generatedLine}:${generatedColumn}`,
+  );
+
+  // Try to find source map with URL normalization
+  const urlVariants = normalizeFileUrl(fileUrl);
+  originalDebug(
+    `[console-inline][sourcemap] URL variants for lookup:`,
+    urlVariants,
+  );
+  originalDebug(
+    `[console-inline][sourcemap] Cache has ${browserSourceMapCache.size} entries:`,
+    Array.from(browserSourceMapCache.keys()),
+  );
+
+  let sourceMap: any = null;
+  let matchedUrl: string | null = null;
+
+  for (const variant of urlVariants) {
+    if (browserSourceMapCache.has(variant)) {
+      sourceMap = browserSourceMapCache.get(variant);
+      matchedUrl = variant;
+      break;
+    }
+  }
+
+  if (!sourceMap) {
+    originalDebug(
+      `[console-inline][sourcemap] NO MAP FOUND for any variant of ${fileUrl}`,
+    );
+    return null;
+  }
+
+  originalDebug(
+    `[console-inline][sourcemap] Found map for ${matchedUrl}, attempting to use trace-mapping...`,
+  );
+
+  try {
+    // Use the imported trace-mapping library
+    if (
+      !traceMapping ||
+      !traceMapping.TraceMap ||
+      !traceMapping.originalPositionFor
+    ) {
+      originalDebug(`[console-inline][sourcemap] trace-mapping not available`);
+      return null;
+    }
+
+    const { TraceMap, originalPositionFor } = traceMapping;
+    const tracer = new TraceMap(sourceMap);
+
+    // Note: trace-mapping uses 1-based line numbers
+    const originalPos = originalPositionFor(tracer, {
+      line: generatedLine,
+      column: generatedColumn,
+    });
+
+    if (originalPos && originalPos.source && originalPos.line != null) {
+      originalDebug(
+        `[console-inline][sourcemap] MAPPED ${fileUrl}:${generatedLine}:${generatedColumn} → ${originalPos.source}:${originalPos.line}:${originalPos.column}`,
+      );
+      return {
+        source: originalPos.source,
+        line: originalPos.line,
+        column: originalPos.column ?? generatedColumn,
+      };
+    } else {
+      originalDebug(
+        `[console-inline][sourcemap] originalPositionFor returned no valid position`,
+      );
+    }
+  } catch (err) {
+    originalDebug(
+      `[console-inline][sourcemap] Error applying source map:`,
+      err,
+    );
+  }
+
+  return null;
+}
+
 function captureCallSite(options?: { skip?: number }): CallSite {
   const skip = Math.max(0, options?.skip ?? 2);
   let file = "unknown";
@@ -359,6 +715,45 @@ function captureCallSite(options?: { skip?: number }): CallSite {
   } catch (err) {
     debug("Error parsing stack trace", err);
   }
+
+  // Apply browser source map transformation if available
+  if (isBrowser && file !== "unknown" && shouldResolveBrowserSourceMaps()) {
+    originalDebug(
+      `[console-inline][sourcemap] captureCallSite: attempting to map ${file}:${line}:${column}`,
+    );
+    debug(
+      `[sourcemap] captureCallSite: attempting to map ${file}:${line}:${column}`,
+    );
+    const mapped = applyBrowserSourceMap(file, line, column);
+    if (mapped) {
+      originalDebug(
+        `[console-inline][sourcemap] MAPPED ${file}:${line}:${column} -> ${mapped.source}:${mapped.line}:${mapped.column}`,
+      );
+      debug(
+        `[sourcemap] Mapped ${file}:${line}:${column} -> ${mapped.source}:${mapped.line}:${mapped.column}`,
+      );
+      return {
+        file,
+        line,
+        column,
+        stack: stackString,
+        original_file: mapped.source,
+        original_line: mapped.line,
+        original_column: mapped.column,
+        mapping_status: "hit",
+      };
+    } else {
+      debug(`[sourcemap] No mapping found for ${file}:${line}:${column}`);
+      return {
+        file,
+        line,
+        column,
+        stack: stackString,
+        mapping_status: "miss",
+      };
+    }
+  }
+
   return { file, line, column, stack: stackString };
 }
 
@@ -1204,13 +1599,24 @@ function buildNetworkPayload(event: NetworkLogEvent) {
     details.error = event.error;
   }
 
+  // Use mapped coordinates if available
+  const file = event.callsite.original_file || event.callsite.file;
+  const line = event.callsite.original_line || event.callsite.line;
+  const column = event.callsite.original_column || event.callsite.column;
+
+  if (event.callsite.original_file) {
+    debug(
+      `[sourcemap] NETWORK USING MAPPED: ${event.callsite.file}:${event.callsite.line} → ${file}:${line} [${event.callsite.mapping_status}]`,
+    );
+  }
+
   const payload: any = {
     method: event.type,
     kind,
     args: sanitizeArgs([summary, details]),
-    file: event.callsite.file,
-    line: event.callsite.line,
-    column: event.callsite.column,
+    file,
+    line,
+    column,
     stack: event.callsite.stack,
     network: {
       ...details,
@@ -1340,10 +1746,21 @@ function patchConsole() {
       }
 
       const callsite = captureCallSite({ skip: 2 });
-      const file = callsite.file;
-      const line = callsite.line;
-      const column = callsite.column;
+      // Use mapped coordinates if available, otherwise fall back to generated coordinates
+      const file = callsite.original_file || callsite.file;
+      const line = callsite.original_line || callsite.line;
+      const column = callsite.original_column || callsite.column;
       const stackString = callsite.stack;
+
+      if (callsite.original_file) {
+        originalDebug(
+          `[console-inline][sourcemap] USING MAPPED: ${callsite.file}:${callsite.line}:${callsite.column} → ${file}:${line}:${column} [${callsite.mapping_status}]`,
+        );
+        debug(
+          `[sourcemap] USING MAPPED: ${callsite.file}:${callsite.line}:${callsite.column} → ${file}:${line}:${column} [${callsite.mapping_status}]`,
+        );
+      }
+
       // Map method to kind
       let kind = method;
       if (kind === "warn") kind = "warn";
@@ -1367,8 +1784,8 @@ function patchConsole() {
       if (timeMeta) {
         payload.time = timeMeta;
       }
-      // Prevent recursive logging from relay-server.js
-      if (!file.endsWith("relay-server.js")) {
+      // Prevent recursive logging from service internals (relay-server, service itself, etc.)
+      if (!isServiceFrame(file)) {
         sendToRelay(JSON.stringify(payload));
       }
       (orig as Function).apply(console, payloadArgs);
@@ -1378,8 +1795,35 @@ function patchConsole() {
 
 if (devEnvironment) {
   if (isBrowser) {
+    originalDebug(
+      "[console-inline] SERVICE LOADED - isBrowser:",
+      isBrowser,
+      "devEnvironment:",
+      devEnvironment,
+    );
     attachBrowserRuntimeHandlers();
     connectRelay();
+
+    // Preload browser source maps for better coordinate mapping
+    const sourceMapsEnabled = shouldResolveBrowserSourceMaps();
+    originalDebug(
+      `[console-inline][sourcemap] Initialization: sourceMapsEnabled=${sourceMapsEnabled}, devEnvironment=${devEnvironment}`,
+    );
+    debug(
+      `[sourcemap] Initialization: sourceMapsEnabled=${sourceMapsEnabled}, devEnvironment=${devEnvironment}`,
+    );
+    if (sourceMapsEnabled) {
+      if (
+        document.readyState === "complete" ||
+        document.readyState === "interactive"
+      ) {
+        preloadBrowserSourceMaps();
+      } else {
+        window.addEventListener("DOMContentLoaded", () => {
+          preloadBrowserSourceMaps();
+        });
+      }
+    }
   } else if (isNode) {
     attachNodeRuntimeHandlers();
     connectTcp();

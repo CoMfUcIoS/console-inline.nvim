@@ -74,6 +74,25 @@ function M.default(entry)
 		return { "<no entry>" }
 	end
 	local lines = {}
+	-- Optional dual coordinate display
+	local state_ok, state = pcall(require, "console_inline.state")
+	if state_ok and state.opts.show_original_and_transformed then
+		local of = entry.original_file or entry.file
+		local ol = entry.original_line or entry.render_line or entry.line
+		local tf = entry.transformed_file or of
+		local tl = entry.transformed_line or ol
+		local oc = entry.original_column
+		local tc = entry.transformed_column or oc
+		local differ = (of ~= tf) or (ol ~= tl) or (oc and tc and oc ~= tc)
+		if differ then
+			local orig_coord =
+				string.format("%s:%s%s", of or "<unknown>", tostring(ol or "?"), oc and (":" .. tostring(oc)) or "")
+			local trans_coord =
+				string.format("%s:%s%s", tf or "<unknown>", tostring(tl or "?"), tc and (":" .. tostring(tc)) or "")
+			append_tagged(lines, "[orig] ", orig_coord)
+			append_tagged(lines, "[built] ", trans_coord)
+		end
+	end
 	local args = entry.raw_args or {}
 	if #args == 0 then
 		local payload = entry.payload or entry.text or ""

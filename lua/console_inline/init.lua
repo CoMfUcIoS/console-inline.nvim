@@ -118,6 +118,18 @@ function M.setup(opts)
 		return
 	end
 	require("console_inline.commands")()
+	-- Optional Tree-sitter integration (opt-in)
+	if state.opts.use_treesitter then
+		local ok_ts, ts_mod = pcall(require, "console_inline.treesitter")
+		if ok_ts and ts_mod and type(ts_mod.activate) == "function" then
+			local ok_activate, err = pcall(ts_mod.activate)
+			if not ok_activate then
+				log.debug("treesitter.activate failed", err)
+			end
+		else
+			log.debug("treesitter module missing or activate not callable")
+		end
+	end
 	if state.opts.autostart ~= false then
 		vim.api.nvim_create_autocmd("VimEnter", {
 			once = true,
@@ -132,6 +144,11 @@ function M.setup(opts)
 		callback = function(args)
 			local buf = args.buf
 			local fname = vim.api.nvim_buf_get_name(buf)
+			-- build index for faster lookups
+			local ok_index, index = pcall(require, "console_inline.index")
+			if ok_index then
+				index.build(buf)
+			end
 			local logfile = vim.g.console_inline_log_path
 				or os.getenv("CONSOLE_INLINE_LOG_PATH")
 				or "console-inline.log"
@@ -179,9 +196,181 @@ function M.setup(opts)
 			if fname == "" then
 				return
 			end
+			local ok_index, index = pcall(require, "console_inline.index")
+			if ok_index and not (state.buffer_index and state.buffer_index[buf]) then
+				index.build(buf)
+			end
 			flush_queued_messages(fname)
 		end,
 	})
+
+	-- Track changes to keep index fresh (best-effort, not diffing deletions precisely)
+	local change_group = vim.api.nvim_create_augroup("ConsoleInlineIndex", { clear = true })
+	vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
+		group = change_group,
+		callback = function(args)
+			local buf = args.buf
+			if not vim.api.nvim_buf_is_loaded(buf) then
+				return
+			end
+			if state.opts.use_index == false then
+				return
+			end
+			local ok_index, index = pcall(require, "console_inline.index")
+			if not ok_index then
+				return
+			end
+			-- naive approach: update a window of lines around cursor
+			local cursor_line = vim.api.nvim_win_get_cursor(0)[1] - 1
+			local changed = {}
+			for ln = cursor_line - 2, cursor_line + 2 do
+				if ln >= 0 and ln < vim.api.nvim_buf_line_count(buf) then
+					changed[#changed + 1] = ln
+				end
+			end
+			index.update_changed(buf, changed)
+			index.handle_deletions(buf)
+		end,
+	})
+
+	-- User command for manual reindex
+	vim.api.nvim_create_user_command("ConsoleInlineReindex", function()
+		if state.opts.use_index == false then
+			vim.notify("console-inline: indexing disabled via opts.use_index", vim.log.levels.WARN)
+			return
+		end
+		-- Benchmark command: synthetic candidate resolution performance
+		vim.api.nvim_create_user_command("ConsoleInlineBenchmark", function(opts)
+			local iterations = tonumber(opts.args) or 100
+			local buf = vim.api.nvim_get_current_buf()
+			if iterations <= 0 then
+				iterations = 50
+			end
+			local total_ns = 0
+			local max_ns = 0
+			local min_ns = nil
+			local render_mod = require("console_inline.render")
+			local stats = state.benchmark_stats
+			local line_count = vim.api.nvim_buf_line_count(buf)
+			for i = 1, iterations do
+				local line0 = math.random(0, math.max(0, line_count - 1))
+				local fake_msg = {
+					file = vim.api.nvim_buf_get_name(buf),
+					line = line0 + 1,
+					kind = "log",
+					args = { "benchmark", "iter=" .. i, { id = i, tag = "bench" } },
+					method = "log",
+				}
+				local before = vim.loop.hrtime()
+				render_mod.render_message(fake_msg)
+				local after = vim.loop.hrtime()
+				local dt = after - before
+				total_ns = total_ns + dt
+				if dt > max_ns then
+					max_ns = dt
+				end
+				if not min_ns or dt < min_ns then
+					min_ns = dt
+				end
+			end
+			local avg = total_ns / iterations
+			local msg = string.format(
+				"console-inline benchmark: iterations=%d avg=%.2fms min=%.2fms max=%.2fms index_used=%s scan_calls=%d index_calls=%d",
+				iterations,
+				avg / 1e6,
+				(min_ns or 0) / 1e6,
+				max_ns / 1e6,
+				state.opts.use_index and "yes" or "no",
+				stats.count_scan,
+				stats.count_index
+			)
+			vim.notify(msg)
+		end, { nargs = "?", desc = "Run console-inline placement benchmark (arg = iterations)" })
+
+		-- Diagnostics command: show index & timing stats
+		vim.api.nvim_create_user_command("ConsoleInlineDiagnostics", function()
+			local buf = vim.api.nvim_get_current_buf()
+			local idx = state.buffer_index and state.buffer_index[buf]
+			local stats = state.benchmark_stats
+			local line_count = vim.api.nvim_buf_line_count(buf)
+			local console_lines = 0
+			local token_count = 0
+			local network_lines = 0
+			if idx then
+				for ln, meta in pairs(idx.lines) do
+					if meta.console then
+						console_lines = console_lines + 1
+					end
+					if meta.network then
+						network_lines = network_lines + 1
+					end
+					token_count = token_count + (#meta.tokens or 0)
+				end
+			end
+			local avg_index = stats.count_index > 0 and (stats.total_index_time_ns / stats.count_index) or 0
+			local avg_scan = stats.count_scan > 0 and (stats.total_scan_time_ns / stats.count_scan) or 0
+			local recent = stats.entries[#stats.entries]
+			local summary = {
+				"console-inline diagnostics:",
+				string.format("buffer lines=%d", line_count),
+				string.format("index enabled=%s", tostring(state.opts.use_index)),
+				string.format("indexed lines=%d", idx and vim.tbl_count(idx.lines) or 0),
+				string.format("console lines indexed=%d", console_lines),
+				string.format("network lines indexed=%d", network_lines),
+				string.format("total tokens=%d", token_count),
+				string.format("avg index candidate time=%.3fms", avg_index / 1e6),
+				string.format("avg scan candidate time=%.3fms", avg_scan / 1e6),
+				string.format("index calls=%d scan calls=%d", stats.count_index, stats.count_scan),
+				string.format(
+					"source map hits=%d misses=%d pending=%d",
+					state.map_stats.hit,
+					state.map_stats.miss,
+					state.map_stats.pending
+				),
+			}
+			if state.opts.use_treesitter then
+				local ok_ts, ts_mod = pcall(require, "console_inline.treesitter")
+				if ok_ts and ts_mod and ts_mod.cache then
+					local cache = ts_mod.cache[buf]
+					if cache then
+						local ctx_count = 0
+						for _ in pairs(cache.ctx or {}) do
+							ctx_count = ctx_count + 1
+						end
+						summary[#summary + 1] = string.format(
+							"treesitter active=true lang=%s ctx_lines=%d",
+							cache.lang or "unknown",
+							ctx_count
+						)
+					else
+						summary[#summary + 1] = "treesitter active=true (no cache for buffer yet)"
+					end
+				else
+					summary[#summary + 1] = "treesitter active=true (module/capture unavailable)"
+				end
+			else
+				summary[#summary + 1] = "treesitter active=false"
+			end
+			if recent then
+				summary[#summary + 1] = string.format(
+					"last placement: candidates=%d time=%.3fms base=%d resolved=%d",
+					recent.candidate_count,
+					recent.time_ns / 1e6,
+					recent.base,
+					recent.resolved
+				)
+			end
+			vim.notify(table.concat(summary, "\n"))
+		end, { desc = "Show console-inline index & timing diagnostics" })
+		local buf = vim.api.nvim_get_current_buf()
+		local ok_index, index = pcall(require, "console_inline.index")
+		if not ok_index then
+			vim.notify("console-inline: index module missing", vim.log.levels.ERROR)
+			return
+		end
+		index.build(buf)
+		vim.notify("console-inline: buffer reindexed")
+	end, { desc = "Rebuild console-inline buffer index" })
 
 	local hover_opts = state.opts.hover or {}
 	if hover_opts.enabled ~= false then

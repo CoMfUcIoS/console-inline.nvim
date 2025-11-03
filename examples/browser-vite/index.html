@@ -39,6 +39,11 @@
     </style>
   </head>
   <body>
+    <!-- Enable source maps for better coordinate mapping -->
+    <script>
+      globalThis.__CONSOLE_INLINE_FORCE_SOURCEMAPS__ = true;
+      console.log("[DEBUG] Source maps force-enabled");
+    </script>
     <main>
       <h1>console-inline Browser Demo</h1>
       <p>

@@ -30,6 +30,12 @@ local M = {
 		autostart_relay = true,
 		replay_persisted_logs = false,
 		suppress_css_color_conflicts = true,
+		use_index = true, -- enable buffer indexing for candidate lookups
+		use_treesitter = false, -- opt-in: leverage Tree-sitter for richer context & precise placement
+		benchmark_enabled = false, -- collect timing stats when true
+		prefer_original_source = true, -- trust original_* fields if emitted by service for placement
+		resolve_source_maps = true, -- ask service to resolve source maps when available
+		show_original_and_transformed = false, -- when true popup shows both coordinates when they differ
 		popup_formatter = nil,
 		history_size = 200,
 		pattern_overrides = nil,
@@ -53,6 +59,16 @@ local M = {
 	relay_pid = nil,
 	history = {},
 	hover_popup = nil,
+	buffer_index = nil,
+	benchmark_stats = {
+		entries = {}, -- recent timing samples
+		max_entries = 200,
+		total_index_time_ns = 0,
+		total_scan_time_ns = 0,
+		count_index = 0,
+		count_scan = 0,
+	},
+	map_stats = { hit = 0, miss = 0, pending = 0 },
 }
 
 return M

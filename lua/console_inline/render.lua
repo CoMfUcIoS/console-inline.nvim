@@ -70,6 +70,8 @@ local function severity_icon(kind)
 	return "●", (kind == "info" and "DiagnosticInfo" or "NonText")
 end
 
+-- Improved network line resolution: search outward from the reported line first,
+-- then fall back to full file scan. Avoids anchoring to the first fetch/xhr globally.
 local function find_network_line(buf, line0, network)
 	if type(network) ~= "table" then
 		return nil
@@ -79,7 +81,7 @@ local function find_network_line(buf, line0, network)
 		return nil
 	end
 	local function matches(line)
-		if not line then
+		if not line or line == "" then
 			return false
 		end
 		if network.type == "fetch" then
@@ -93,30 +95,68 @@ local function find_network_line(buf, line0, network)
 		end
 		local url = network.url
 		if type(url) == "string" and #url >= 3 then
-			local plain = url
-			plain = plain:gsub("^[^%w]+", "")
+			local plain = url:gsub("^[^%w]+", "")
 			if #plain >= 3 and line:find(plain, 1, true) then
 				return true
 			end
 		end
 		return false
 	end
-	local start = math.max(0, line0)
-	local finish = math.min(max - 1, line0 + 20)
-	for i = start, finish do
-		local line = vim.api.nvim_buf_get_lines(buf, i, i + 1, false)[1]
-		if matches(line) then
-			return i
+	line0 = type(line0) == "number" and math.max(0, math.min(max - 1, line0)) or 0
+	local radius = 80 -- search window around the incoming line first
+	for offset = 0, radius do
+		local up = line0 - offset
+		local down = line0 + offset
+		if up >= 0 then
+			local line_up = vim.api.nvim_buf_get_lines(buf, up, up + 1, false)[1]
+			if matches(line_up) then
+				return up
+			end
+		end
+		if down < max and offset > 0 then
+			local line_down = vim.api.nvim_buf_get_lines(buf, down, down + 1, false)[1]
+			if matches(line_down) then
+				return down
+			end
 		end
 	end
-	local back_start = math.max(0, line0 - 5)
-	for i = back_start, line0 - 1 do
+	-- fallback full scan (rare)
+	for i = 0, max - 1 do
 		local line = vim.api.nvim_buf_get_lines(buf, i, i + 1, false)[1]
 		if matches(line) then
 			return i
 		end
 	end
 	return nil
+end
+
+local function leading_comment_lines(buf)
+	local count = 0
+	local total = vim.api.nvim_buf_line_count(buf)
+	local limit = math.min(total, 200)
+	local in_block = false
+	for i = 0, limit - 1 do
+		local line = vim.api.nvim_buf_get_lines(buf, i, i + 1, false)[1] or ""
+		local trimmed = line:match("^%s*(.-)%s*$") or ""
+		if trimmed == "" then
+			count = count + 1
+		elseif in_block then
+			count = count + 1
+			if trimmed:find("%*/") then
+				in_block = false
+			end
+		elseif trimmed:match("^%-%-") or trimmed:match("^//") then
+			count = count + 1
+		elseif trimmed:match("^/%*") then
+			count = count + 1
+			if not trimmed:find("%*/") then
+				in_block = true
+			end
+		else
+			break
+		end
+	end
+	return count
 end
 
 local function network_icon(kind)
@@ -314,122 +354,427 @@ local function line_contains_console(line)
 	return line and line:find("console%.") ~= nil
 end
 
+-- Extract candidate anchor terms from arguments/timer label with basic stop-word filtering.
+local stopwords = {
+	["error"] = true,
+	["warn"] = true,
+	["warning"] = true,
+	["info"] = true,
+	["log"] = true,
+	["message"] = true,
+	["duration"] = true,
+	["label"] = true,
+	["fetch"] = true,
+	["open"] = true,
+	["send"] = true,
+}
 local function collect_terms(args, timer)
 	local terms = {}
+	local seen_terms = {}
 	local function push(term)
 		if type(term) ~= "string" then
 			return
 		end
 		local trimmed = term:match("^%s*(.-)%s*$") or term
-		if #trimmed >= 3 then
+		if trimmed:find("\n") then
+			return
+		end
+		if #trimmed < 3 or #trimmed > 120 then
+			return
+		end
+		local lower = trimmed:lower()
+		if stopwords[lower] and #trimmed < 8 then
+			return
+		end -- ignore generic short stopwords
+		if not seen_terms[trimmed] then
 			terms[#terms + 1] = trimmed
+			seen_terms[trimmed] = true
 		end
 	end
 	if timer and type(timer.label) == "string" then
 		push(timer.label)
 	end
+	local function extract(value, depth)
+		if depth > 4 then
+			return
+		end
+		if type(value) == "string" then
+			push(value)
+		elseif type(value) == "table" then
+			local seen = 0
+			for _, inner in pairs(value) do
+				if seen >= 6 then
+					break
+				end
+				extract(inner, depth + 1)
+				seen = seen + 1
+			end
+		end
+	end
 	if type(args) == "table" then
 		for _, value in ipairs(args) do
-			if type(value) == "string" then
-				push(value)
-				break
-			end
+			extract(value, 0)
 		end
 	end
 	return terms
 end
 
-local function gather_candidates(buf, method, terms)
+local function line_contains_term(buf, line0, terms)
+	if type(terms) ~= "table" or #terms == 0 then
+		return false
+	end
+	if type(line0) ~= "number" then
+		return false
+	end
+	local ok, line = pcall(vim.api.nvim_buf_get_lines, buf, line0, line0 + 1, false)
+	if not ok or type(line) ~= "table" then
+		return false
+	end
+	local text = line[1]
+	if type(text) ~= "string" or text == "" then
+		return false
+	end
+	for _, term in ipairs(terms) do
+		if type(term) == "string" and term ~= "" and text:find(term, 1, true) then
+			return true
+		end
+	end
+	return false
+end
+
+local function line_contains_error_pattern(line)
+	if not line or line == "" then
+		return false
+	end
+	-- Match throw statements (but not in console.* calls)
+	if (line:find("throw%s") or line:find("throw%(")) and not line:find("console%.") then
+		return true
+	end
+	-- Match Error construction (new Error, Promise.reject, etc.) - but not in console.* calls
+	if not line:find("console%.") then
+		if line:find("new%s+Error") or line:find("new%s+TypeError") or line:find("new%s+RangeError") then
+			return true
+		end
+		if line:find("Promise%.reject") or line:find("Promise%.Reject") then
+			return true
+		end
+		-- Match error instantiation in general (but not as console.error argument)
+		if line:find("Error%(") and not line:find("console%.error") then
+			return true
+		end
+	end
+	return false
+end
+
+-- New candidate collection + scoring heuristic.
+local function gather_candidates(buf, base_line, method, terms)
+	local do_bench = state.opts.benchmark_enabled ~= false and state.opts.benchmark_enabled
+	local t_start = do_bench and vim.loop.hrtime() or nil
+	local used_index = false
+	local ok_index, index = pcall(require, "console_inline.index")
+	if state.opts.use_index ~= false and ok_index and state.buffer_index and state.buffer_index[buf] then
+		used_index = true
+		local token_list = {}
+		for _, t in ipairs(terms or {}) do
+			token_list[#token_list + 1] = t:lower()
+		end
+		local lines = index.lookup(buf, token_list, method)
+		local results = {}
+		local method_literal = (
+			type(method) == "string"
+			and method ~= ""
+			and (method:match("^[%w_]+$") and ("console." .. method) or nil)
+		) or nil
+		for _, idx in ipairs(lines or {}) do
+			local line = vim.api.nvim_buf_get_lines(buf, idx, idx + 1, false)[1]
+			if line and line ~= "" then
+				local has_console = line_contains_console(line)
+				local col = 1
+				local method_match = false
+				if has_console then
+					local cpos = line:find("console%.")
+					if cpos then
+						col = cpos
+					end
+					if method_literal then
+						local mcol = line:find(method_literal, 1, true)
+						if mcol then
+							method_match = true
+							col = mcol
+						end
+					end
+				end
+				local term_hits = 0
+				local first_term_col = nil
+				for _, term in ipairs(terms or {}) do
+					local pos = line:find(term, 1, true)
+					if pos then
+						term_hits = term_hits + 1
+						first_term_col = first_term_col and math.min(first_term_col, pos) or pos
+					end
+				end
+				local is_comment = line:match("^%s*//") or line:match("^%s*%-%-") or line:match("^%s*/%*")
+				if first_term_col then
+					col = first_term_col
+				end
+				local line_dist = math.abs(idx - base_line)
+				local score = line_dist * 10
+				if method_match then
+					score = score - 1000
+				end
+				if has_console then
+					score = score - 200
+				end
+				if term_hits > 0 then
+					score = score - (term_hits * 50)
+				end
+				if is_comment and not has_console then
+					score = score + 200
+				end
+				results[#results + 1] = {
+					line = idx,
+					column = col - 1,
+					method_match = method_match,
+					term_hits = term_hits,
+					is_comment = is_comment and true or false,
+					score = score,
+				}
+			end
+		end
+		if do_bench and t_start then
+			local elapsed = vim.loop.hrtime() - t_start
+			local stats = require("console_inline.state").benchmark_stats
+			stats.total_index_time_ns = stats.total_index_time_ns + elapsed
+			stats.count_index = stats.count_index + 1
+		end
+		return results
+	end
+	-- Fallback to full scan
 	local max = vim.api.nvim_buf_line_count(buf)
-	local method_literal = method and ("console." .. method) or nil
 	local results = {}
-	local method_match_found = false
-	local term_match_found = false
+	local method_literal = (
+		type(method) == "string"
+		and method ~= ""
+		and (method:match("^[%w_]+$") and ("console." .. method) or nil)
+	) or nil
+	local is_runtime_error = method and (method:find("onerror") or method:find("rejection") or method:find("Exception"))
 	for idx = 0, max - 1 do
 		local line = vim.api.nvim_buf_get_lines(buf, idx, idx + 1, false)[1]
-		if line_contains_console(line) then
-			local col = line:find("console%.") or 1
+		if line and line ~= "" then
+			local has_console = line_contains_console(line)
+			local has_error_pattern = is_runtime_error and line_contains_error_pattern(line)
+			local col = 1
 			local method_match = false
-			if method_literal then
-				local mcol = line:find(method_literal, 1, true)
-				if mcol then
-					method_match = true
-					col = mcol
+			if has_console then
+				local cpos = line:find("console%.")
+				if cpos then
+					col = cpos
 				end
-			end
-			local term_match = false
-			if terms and #terms > 0 then
-				for _, term in ipairs(terms) do
-					if line:find(term, 1, true) then
-						term_match = true
-						break
+				if method_literal then
+					local mcol = line:find(method_literal, 1, true)
+					if mcol then
+						method_match = true
+						col = mcol
 					end
 				end
 			end
-			if method_match then
-				method_match_found = true
+			local term_hits = 0
+			local first_term_col = nil
+			for _, term in ipairs(terms or {}) do
+				local pos = line:find(term, 1, true)
+				if pos then
+					term_hits = term_hits + 1
+					first_term_col = first_term_col and math.min(first_term_col, pos) or pos
+				end
 			end
-			if term_match then
-				term_match_found = true
+			local is_comment = line:match("^%s*//") or line:match("^%s*%-%-") or line:match("^%s*/%*")
+			if first_term_col then
+				col = first_term_col
 			end
-			results[#results + 1] = {
-				line = idx,
-				column = col - 1,
-				method_match = method_match,
-				term_match = term_match,
-			}
+			-- Include line if it has console, terms, or error patterns for runtime errors
+			if has_console or term_hits > 0 or has_error_pattern then
+				local line_dist = math.abs(idx - base_line)
+				local score = line_dist * 10
+				if method_match then
+					score = score - 1000
+				end
+				if has_console then
+					score = score - 200
+				end
+				if term_hits > 0 then
+					score = score - (term_hits * 50)
+				end
+				if has_error_pattern then
+					score = score - 300
+				end -- Boost error patterns
+				if is_comment and not has_console then
+					score = score + 200
+				end
+				results[#results + 1] = {
+					line = idx,
+					column = col - 1,
+					method_match = method_match,
+					term_hits = term_hits,
+					is_comment = is_comment and true or false,
+					score = score,
+				}
+			end
 		end
 	end
-	if method_literal and method_match_found then
-		local filtered = {}
-		for _, item in ipairs(results) do
-			if item.method_match then
-				filtered[#filtered + 1] = item
-			end
-		end
-		if #filtered > 0 then
-			results = filtered
-		end
-	end
-	if terms and #terms > 0 and term_match_found then
-		local filtered = {}
-		for _, item in ipairs(results) do
-			if item.term_match then
-				filtered[#filtered + 1] = item
-			end
-		end
-		if #filtered > 0 then
-			results = filtered
-		end
+	if do_bench and t_start then
+		local elapsed = vim.loop.hrtime() - t_start
+		local stats = require("console_inline.state").benchmark_stats
+		stats.total_scan_time_ns = stats.total_scan_time_ns + elapsed
+		stats.count_scan = stats.count_scan + 1
 	end
 	return results
 end
 
-local function adjust_line(buf, line0, method, args, timer, column, network)
+local function adjust_line(buf, line0, method, args, timer, column, network, terms)
+	-- network override (proximity based)
 	local network_line = find_network_line(buf, line0, network)
 	if network_line ~= nil then
 		return network_line
 	end
-	local candidates = gather_candidates(buf, method, collect_terms(args, timer))
+	terms = terms or collect_terms(args, timer)
+	local do_bench = state.opts.benchmark_enabled ~= false and state.opts.benchmark_enabled
+	local t_start = do_bench and vim.loop.hrtime() or nil
+	local candidates = gather_candidates(buf, line0, method, terms)
+
+	-- For runtime errors with no candidates, do a focused search for error patterns
+	local is_runtime_error = method and (method:find("onerror") or method:find("rejection") or method:find("Exception"))
+	if #candidates == 0 and is_runtime_error then
+		local max = vim.api.nvim_buf_line_count(buf)
+		local search_radius = math.min(100, max)
+		for offset = 0, search_radius do
+			for _, dir in ipairs({ -1, 1 }) do
+				local check_line = line0 + (offset * dir)
+				if check_line >= 0 and check_line < max then
+					local line_text = vim.api.nvim_buf_get_lines(buf, check_line, check_line + 1, false)[1]
+					if line_text and line_contains_error_pattern(line_text) then
+						candidates[#candidates + 1] = {
+							line = check_line,
+							column = 0,
+							method_match = false,
+							term_hits = 0,
+							is_comment = false,
+							score = math.abs(check_line - line0) * 10 - 400, -- Strong preference
+						}
+					end
+				end
+			end
+		end
+	end
+
 	if #candidates == 0 then
 		return line0
 	end
-	local target_col = column and (column - 1) or nil
-	local best = candidates[1]
-	local best_score = math.huge
-	for _, candidate in ipairs(candidates) do
-		local line_dist = math.abs(candidate.line - line0)
-		local col_dist = 0
-		if target_col then
-			col_dist = math.abs((candidate.column or 0) - target_col)
-		end
-		local score = line_dist * 1000 + col_dist
-		if score < best_score then
-			best_score = score
-			best = candidate
+	-- restrict to radius around base_line if we have credible base position
+	local max = vim.api.nvim_buf_line_count(buf)
+	local radius = math.max(50, math.floor(max * 0.05))
+	local filtered = {}
+	for _, c in ipairs(candidates) do
+		if math.abs(c.line - line0) <= radius then
+			filtered[#filtered + 1] = c
 		end
 	end
-	return best.line or line0
+	if #filtered > 0 then
+		candidates = filtered
+	end
+	local target_col = column and (column - 1) or nil
+	local best = nil
+	local best_score = math.huge
+	local ts_mod = nil
+	local ts_ctx_base = nil
+	if state.opts.use_treesitter then
+		local ok_ts, mod = pcall(require, "console_inline.treesitter")
+		if ok_ts then
+			ts_mod = mod
+			ts_ctx_base = mod.context_for(buf, line0)
+		end
+	end
+	for _, c in ipairs(candidates) do
+		local score = c.score
+		if target_col then
+			local col_dist = math.abs((c.column or 0) - target_col)
+			score = score + col_dist * 2
+		end
+		if ts_mod then
+			local ctx = ts_mod.context_for(buf, c.line)
+			if ctx and ts_ctx_base then
+				-- Favor same function/class blocks: subtract a bonus
+				if
+					ctx.function_name
+					and ts_ctx_base.function_name
+					and ctx.function_name == ts_ctx_base.function_name
+				then
+					score = score - 120
+				end
+				if ctx.class_name and ts_ctx_base.class_name and ctx.class_name == ts_ctx_base.class_name then
+					score = score - 80
+				end
+			end
+			-- Favor explicit console call nodes when method matches
+			if ctx and ctx.has_console_call and method then
+				score = score - 40
+			end
+			if ctx then
+				if ctx.has_fetch_call then
+					-- Slight boost for network-related resolution proximity
+					score = score - 30
+				end
+				if ctx.has_error_new or ctx.has_throw_stmt or ctx.has_promise_reject then
+					-- Emphasize error-related lines when method involves error/warn
+					if method == "error" or method == "warn" then
+						score = score - 50
+					end
+					-- Strong boost for runtime errors to prefer actual throw/error sites
+					if method and (method:find("onerror") or method:find("rejection") or method:find("Exception")) then
+						score = score - 500
+					end
+				end
+				if ctx.console_method_name and method and ctx.console_method_name == method then
+					-- Direct method name alignment
+					score = score - 25
+				end
+			end
+		end
+		if score < best_score then
+			best_score = score
+			best = c
+		end
+	end
+	local resolved = (best and best.line) or line0
+
+	log.debug(
+		string.format(
+			"adjust_line result: base=%d resolved=%d candidates=%d best_score=%.1f method=%s",
+			line0,
+			resolved,
+			#candidates,
+			best_score,
+			tostring(method)
+		)
+	)
+
+	if do_bench and t_start then
+		local elapsed = vim.loop.hrtime() - t_start
+		local stats = state.benchmark_stats
+		local rec = {
+			resolved = resolved,
+			base = line0,
+			candidate_count = #candidates,
+			terms = terms,
+			method = method,
+			time_ns = elapsed,
+		}
+		local entries = stats.entries
+		entries[#entries + 1] = rec
+		if #entries > stats.max_entries then
+			table.remove(entries, 1)
+		end
+	end
+	return resolved
 end
 
 local function set_line_text(buf, line0, entry, hl)
@@ -458,8 +803,52 @@ function M.render_message(msg)
 		return
 	end
 
+	-- Capture transformed coordinates before any override.
+	local transformed_file = msg.file
+	local transformed_line = msg.line
+	local transformed_column = msg.column
+
+	-- Prefer original source if service emitted remapped coordinates and option enabled.
+	if state.opts.prefer_original_source and msg.original_file and msg.original_line then
+		if type(msg.original_file) == "string" and msg.original_file ~= "" then
+			msg.file = msg.original_file
+		end
+		local oline = tonumber(msg.original_line)
+		if oline and oline > 0 then
+			msg.line = oline
+		end
+		if msg.original_column then
+			local ocol = tonumber(msg.original_column)
+			if ocol and ocol > 0 then
+				msg.column = ocol
+			end
+		end
+	end
+
 	local kind = msg.kind or "log"
 	local full_payload = stringify_args(msg.args)
+	-- Track source map resolution status counters; handle transitions.
+	if type(msg.mapping_status) == "string" then
+		local ms = msg.mapping_status
+		local stats = state.map_stats
+		if stats then
+			local transition = msg.mapping_status_transition
+			if transition == "pending->hit" then
+				if stats.pending > 0 then
+					stats.pending = stats.pending - 1
+				end
+				stats.hit = stats.hit + 1
+			else
+				if ms == "hit" then
+					stats.hit = stats.hit + 1
+				elseif ms == "miss" then
+					stats.miss = stats.miss + 1
+				elseif ms == "pending" then
+					stats.pending = stats.pending + 1
+				end
+			end
+		end
+	end
 	if not filters.should_render(msg, full_payload) then
 		log.debug("render_message: filtered by project rules", msg)
 		return
@@ -528,6 +917,12 @@ function M.render_message(msg)
 			trace = msg.trace,
 			time = msg.time,
 			network = msg.network,
+			transformed_file = transformed_file,
+			transformed_line = transformed_line,
+			transformed_column = transformed_column,
+			original_file = msg.original_file or msg.file,
+			original_column = msg.original_column or msg.column,
+			mapping_status = msg.mapping_status,
 			timestamp = os.time(),
 		}
 		history.record(history_entry)
@@ -535,6 +930,12 @@ function M.render_message(msg)
 	else
 		history_entry.file = msg.file
 		history_entry.original_line = msg.line
+		history_entry.transformed_file = transformed_file
+		history_entry.transformed_line = transformed_line
+		history_entry.transformed_column = transformed_column
+		history_entry.original_file = msg.original_file or msg.file
+		history_entry.original_column = msg.original_column or msg.column
+		history_entry.mapping_status = msg.mapping_status
 		history_entry.kind = kind
 		history_entry.payload = full_payload
 		history_entry.display_payload = display_payload
@@ -586,8 +987,167 @@ function M.render_message(msg)
 		return
 	end
 
-	local line0 = clamp_line(buf, (msg.line or 1) - 1)
-	line0 = adjust_line(buf, line0, msg.method, msg.args, msg.time, msg.column, msg.network)
+	local base_line = clamp_line(buf, (msg.line or 1) - 1)
+	local terms = collect_terms(msg.args, msg.time)
+	local terms_count = terms and #terms or 0
+	local method = type(msg.method) == "string" and msg.method or nil
+	local is_runtime_error = false
+	local window_or_process = false
+	if method then
+		if method:find("^window%.") or method:find("^process%.") then
+			window_or_process = true
+			-- Runtime errors: error/rejection/Exception handlers
+			if method:find("error") or method:find("rejection") or method:find("Exception") then
+				is_runtime_error = true
+			end
+		end
+	end
+
+	log.debug(
+		string.format(
+			"render_message positioning: file=%s msg.line=%d base_line=%d (0-indexed) method=%s is_runtime_error=%s terms_count=%d",
+			msg.file or "nil",
+			msg.line or 0,
+			base_line,
+			method or "nil",
+			tostring(is_runtime_error),
+			terms_count
+		)
+	)
+
+	-- For runtime errors, search nearby lines for actual error patterns
+	-- Stack traces sometimes point to the callback setup rather than the throw line
+	local line0 = base_line
+	if is_runtime_error then
+		local base_line_text = vim.api.nvim_buf_get_lines(buf, base_line, base_line + 1, false)[1]
+		log.debug(
+			string.format(
+				"Runtime error base line %d (0-indexed) = line %d (1-indexed): '%s'",
+				base_line,
+				base_line + 1,
+				base_line_text or "nil"
+			)
+		)
+
+		if base_line_text and line_contains_error_pattern(base_line_text) then
+			-- Base line has error pattern, use it
+			log.debug("Runtime error: base line contains error pattern, using it")
+			line0 = base_line
+		else
+			-- For async errors (setTimeout/setInterval callbacks), search FORWARD first
+			-- since the base line might point to the setTimeout call line
+			-- Skip caught errors in try-catch blocks by preferring patterns farther forward
+			log.debug("Runtime error: base line lacks error pattern, searching nearby (forward then backward)")
+			local found = false
+			local max = vim.api.nvim_buf_line_count(buf)
+			local candidates_found = {}
+
+			-- Try Tree-sitter first if available
+			local use_ts = state.opts.use_treesitter ~= false
+			local has_ts, ts_mod = pcall(require, "console_inline.treesitter")
+			local ts_contexts = {}
+			if use_ts and has_ts then
+				-- Collect Tree-sitter contexts for forward lines
+				for offset = 1, 30 do
+					local check_line = base_line + offset
+					if check_line >= 0 and check_line < max then
+						local ctx = ts_mod.context_for(buf, check_line)
+						if ctx and (ctx.has_throw_stmt or ctx.has_error_new or ctx.has_promise_reject) then
+							ts_contexts[check_line] = ctx
+							table.insert(candidates_found, { line = check_line, offset = offset, from_ts = true })
+						end
+					end
+				end
+			end
+
+			-- If Tree-sitter didn't find anything, fall back to regex
+			if #candidates_found == 0 then
+				for offset = 1, 30 do
+					local check_line = base_line + offset
+					if check_line >= 0 and check_line < max then
+						local line_text = vim.api.nvim_buf_get_lines(buf, check_line, check_line + 1, false)[1]
+						if line_text and line_contains_error_pattern(line_text) then
+							table.insert(candidates_found, { line = check_line, offset = offset, from_ts = false })
+						end
+					end
+				end
+			end
+
+			-- Prefer the LAST match (farthest forward) as it's more likely to be in the actual async callback
+			-- Errors in try-catch blocks tend to appear earlier in the file
+			if #candidates_found > 0 then
+				local best = candidates_found[#candidates_found]
+				local method_str = best.from_ts and "Tree-sitter" or "regex"
+				log.debug(
+					string.format(
+						"Runtime error: found %d error patterns (%s), using farthest at line %d (offset +%d)",
+						#candidates_found,
+						method_str,
+						best.line,
+						best.offset
+					)
+				)
+				line0 = best.line
+				found = true
+			end
+
+			-- If not found forward, search backward
+			if not found then
+				for offset = 1, 10 do
+					local check_line = base_line - offset
+					if check_line >= 0 and check_line < max then
+						local line_text = vim.api.nvim_buf_get_lines(buf, check_line, check_line + 1, false)[1]
+						if line_text and line_contains_error_pattern(line_text) then
+							log.debug(
+								string.format(
+									"Runtime error: found error pattern at line %d (offset -%d)",
+									check_line,
+									offset
+								)
+							)
+							line0 = check_line
+							found = true
+							break
+						end
+					end
+				end
+			end
+
+			if not found then
+				log.debug("Runtime error: no error pattern found nearby, using base line")
+				line0 = base_line
+			end
+		end
+	elseif window_or_process and terms_count == 0 then
+		-- Non-error window/process methods without terms shouldn't adjust
+		line0 = base_line
+	else
+		-- Normal console.log/etc - use full adjustment logic
+		-- For console.error/warn, check if base line already has console call before adjusting
+		local skip_adjustment = false
+		if method == "error" or method == "warn" then
+			local base_text = vim.api.nvim_buf_get_lines(buf, base_line, base_line + 1, false)[1]
+			if base_text and base_text:find("console%." .. method) then
+				skip_adjustment = true
+				log.debug(
+					string.format("console.%s: base line contains console.%s call, skipping adjustment", method, method)
+				)
+			end
+		end
+
+		local adjusted_line
+		if skip_adjustment then
+			adjusted_line = base_line
+		else
+			adjusted_line = adjust_line(buf, base_line, msg.method, msg.args, msg.time, msg.column, msg.network, terms)
+		end
+		if window_or_process and terms_count > 0 and adjusted_line ~= base_line then
+			if not line_contains_term(buf, adjusted_line, terms) then
+				adjusted_line = base_line
+			end
+		end
+		line0 = adjusted_line
+	end
 	history_entry.render_line = line0 + 1
 	history_entry.buf = buf
 

@@ -18,6 +18,14 @@
 
 import "@console-inline/service";
 
+process.on("uncaughtException", (err) => {
+  console.error("Caught uncaught exception:", err);
+});
+
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("Caught unhandled rejection:", reason);
+});
+
 setInterval(() => console.warn("tick", Date.now()), 1000);
 setInterval(() => console.log("hi", Math.random()), 2000);
 setInterval(() => console.error("error", new Error("oops")), 3000);

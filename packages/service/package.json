@@ -25,6 +25,7 @@
     "typescript": "^5.0.0"
   },
   "dependencies": {
-    "ws": "^8.18.3"
+    "ws": "^8.18.3",
+    "@jridgewell/trace-mapping": "^0.3.19"
   }
 }

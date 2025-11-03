@@ -97,6 +97,11 @@ require('console_inline').setup({
   history_size = 200,
   pattern_overrides = nil,
   filters = nil,
+  use_treesitter = true, -- leverage Tree-sitter (JS/TS/TSX) for accurate structural placement
+  use_index = true, -- set false to disable buffer indexing & revert to full scans
+  prefer_original_source = true, -- trust original_* coordinates from service (source maps / transforms)
+  resolve_source_maps = true, -- attempt Node source map resolution (CONSOLE_INLINE_SOURCE_MAPS env overrides)
+  show_original_and_transformed = false, -- popup shows both coord sets when they differ
 })
 ```
 
@@ -114,6 +119,130 @@ require('console_inline').setup({
 - `filters` — configure allow/deny lists and severity overrides for specific paths or payload patterns.
 - `hover` — control automatic hover popups (set `enabled = false` to opt out, override `events`, `hide_events`, `border`, etc. to tweak behaviour).
 - `popup_formatter` — optional function(entry) -> lines used for popup formatting; defaults to prettifying JSON via `vim.inspect`.
+- `use_index` — when `true` (default) builds a lightweight per-buffer token index for fast, more accurate virtual text placement. Disable to fall back to naive scanning if you suspect indexing issues.
+- `use_treesitter` — when `true` attempts a Tree-sitter parser (typescript, tsx, javascript) to extract structural context (function/class boundaries, console/fetch/error calls) for refined placement. Falls back silently if parser absent.
+- `prefer_original_source` — when `true` (default) the renderer prefers `original_file`, `original_line`, and `original_column` emitted by the service over transformed coordinates.
+- `resolve_source_maps` — when `true` (default) service tries to read sibling `*.js.map` files (Node) to recover authored locations; override with `CONSOLE_INLINE_SOURCE_MAPS=true|false`.
+- `show_original_and_transformed` — when `true`, the popup lists both sets of coordinates if mapping succeeded and they differ.
+- `benchmark_enabled` — `false` by default. Set `true` to collect timing stats for candidate resolution (used by `:ConsoleInlineBenchmark` / `:ConsoleInlineDiagnostics`). Disable in normal usage to avoid tiny overhead.
+
+### Reindex Command
+
+If you edit large portions of a file and want to force a full rebuild of the placement index, run:
+
+`:ConsoleInlineReindex`
+
+### Benchmark & Diagnostics
+
+Run synthetic placement performance tests (default 100 iterations):
+
+`:ConsoleInlineBenchmark 200` -- run with 200 iterations
+
+Show index & timing stats:
+
+`:ConsoleInlineDiagnostics`
+
+Benchmark reports average/min/max render invocation times and counts of index vs scan candidate retrieval. Diagnostics show index composition and last placement metrics.
+
+This clears and rebuilds the token index for the current buffer.
+
+### Improved Placement Heuristic
+
+Recent updates introduced:
+
+- Proximity-first network call anchoring.
+- Scoring-based candidate selection (method match, console presence, term overlap, comment penalties, line & column distance).
+- Per-buffer indexing to avoid O(N) scans per message.
+- Basic deletion handling and incremental token updates around recent edits.
+- Optional Tree-sitter assisted bonuses (same function/class, explicit console/fetch/error call nodes) when `use_treesitter = true`.
+
+### Tree-sitter Assisted Placement (Experimental)
+
+Enable with:
+
+```lua
+require('console_inline').setup({
+  use_treesitter = true,
+})
+```
+
+Current enhancements:
+
+- Detects `console.*` calls, `fetch(...)`, `new Error(...)`, `Promise.reject(...)`, and `throw` statements.
+- Adds structural weighting: prefers same function or class scope, aligns exact console method names.
+- Strong preference for actual error sites when displaying runtime errors (uncaught exceptions, unhandled rejections).
+- Slight boosts for network (`fetch`) and error-centric locations for `warn`/`error` messages.
+- Fallback: if a parser is not available for the buffer, regex-based pattern matching provides similar benefits.
+
+**Note**: For best error positioning with runtime errors, enable Tree-sitter with `use_treesitter = true`. Without it, the plugin uses regex patterns which work but may be less precise for complex code.
+
+**Browser Source Maps**: ✅ **Fully implemented and enabled by default**. The plugin automatically:
+
+- Detects and fetches inline (`data:application/json;base64,...`) and external (`.map` files) source maps
+- Preloads common entry points (`/main.ts`, `/src/main.ts`, etc.) during initialization
+- Normalizes URLs to handle both full URLs (`http://localhost:5173/main.ts`) and paths (`/main.ts`)
+- Translates transpiled coordinates to original source locations using `@jridgewell/trace-mapping`
+- Works seamlessly with Vite, Next.js, and other modern bundlers
+
+When source maps are available, console messages appear at their **true source locations** in your TypeScript/JSX files, not at transpiled JavaScript lines. No configuration required—just works in development mode.
+
+**Fallback Heuristics**: If source maps are unavailable or disabled, the plugin uses intelligent heuristics (method matching, term matching, Tree-sitter context) as a robust fallback. This works well in practice, typically placing virtual text on the correct line even when coordinates are off by 20+ lines.
+
+Planned expansions may include granular async/await boundary detection, JSX component scope weighting, and argument-sensitive proximity hints.
+
+### Source Mapping
+
+Source map resolution is **fully implemented and enabled by default** for both Node.js and browser environments. For each callsite:
+
+1. Stack trace parsed → generated `file:line:column`.
+2. Source map loaded & cached:
+   - **Node.js**: Sibling `.js.map` files (e.g., `generated.js.map`)
+   - **Browser**: Inline (`data:application/json;base64,...`) or external (`.map`) via `sourceMappingURL`
+3. `@jridgewell/trace-mapping` resolves original authored coordinates.
+4. Payload includes both generated and original fields plus explicit `transformed_*` duplicates for popup comparison.
+
+#### Browser Source Maps
+
+The browser implementation includes:
+
+- **Automatic preloading**: Scans `<script>` tags and common entry points on page load
+- **URL normalization**: Handles both full URLs and path-only formats
+- **Promise coordination**: Prevents duplicate fetches for the same source map
+- **Inline map support**: Parses base64-encoded inline source maps
+- **External map support**: Fetches `.map` files via fetch API
+
+To force-enable source maps for testing (bypasses dev environment check):
+
+```html
+<script>
+  globalThis.__CONSOLE_INLINE_FORCE_SOURCEMAPS__ = true;
+</script>
+```
+
+Options involved:
+
+```lua
+prefer_original_source = true          -- use mapped coordinates when available
+resolve_source_maps = true             -- enable source map resolution (default: true in dev)
+show_original_and_transformed = false  -- show both coordinate sets in popup
+```
+
+Environment overrides / tuning:
+
+```bash
+CONSOLE_INLINE_SOURCE_MAPS=false        # disable resolution entirely
+CONSOLE_INLINE_SOURCE_MAPS=true         # force enable (e.g. production debug)
+CONSOLE_INLINE_SOURCE_MAP_PRELOAD=false # disable background preload of Node map files
+CONSOLE_INLINE_SOURCE_MAP_PRELOAD=true  # force enable preload (default true in dev)
+CONSOLE_INLINE_SOURCE_MAP_MAX_QUEUE=50  # cap queued Node maps for preload (default 20)
+```
+
+`mapping_status` values exposed per payload:
+
+- `hit` — original coordinates successfully resolved via source map
+- `miss` — resolution attempted but no map / mapping failed (falls back to generated location)
+
+If resolution fails, `original_*` simply mirrors generated coordinates; placement remains correct using fallback heuristics.
 
 ### Pattern overrides
 
@@ -183,6 +312,9 @@ Strings under `paths` are treated as file globs (`**` supported). Message entrie
 - `CONSOLE_INLINE_WS_RECONNECT_MS` — delay between WebSocket reconnect attempts (default `1000`).
 - `CONSOLE_INLINE_MAX_QUEUE` — max messages to buffer while the TCP server is offline (default `200`; oldest entries are dropped first).
 - `CONSOLE_INLINE_DEBUG` — enable verbose logging in both the service and relay for troubleshooting.
+- `CONSOLE_INLINE_SOURCE_MAPS` — force enable/disable source map resolution irrespective of dev environment.
+- `CONSOLE_INLINE_SOURCE_MAP_PRELOAD` — enable/disable background Node source map preload queue.
+- `CONSOLE_INLINE_SOURCE_MAP_MAX_QUEUE` — maximum number of Node map paths queued for preload.
 
 ## Advanced Usage
 
@@ -202,7 +334,7 @@ Strings under `paths` are treated as file globs (`**` supported). Message entrie
 
 ## Testing
 
-- Node.js: `npm install && npm test` (uses Vitest)
+- Node.js: `npm install && npm test` (uses Vitest). Mapping tests validate presence of `mapping_status` in emitted payloads.
 - Lua: Run tests in `tests/lua` with your preferred Lua test runner
 
 ## Contribution
