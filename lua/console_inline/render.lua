@@ -130,35 +130,6 @@ local function find_network_line(buf, line0, network)
 	return nil
 end
 
-local function leading_comment_lines(buf)
-	local count = 0
-	local total = vim.api.nvim_buf_line_count(buf)
-	local limit = math.min(total, 200)
-	local in_block = false
-	for i = 0, limit - 1 do
-		local line = vim.api.nvim_buf_get_lines(buf, i, i + 1, false)[1] or ""
-		local trimmed = line:match("^%s*(.-)%s*$") or ""
-		if trimmed == "" then
-			count = count + 1
-		elseif in_block then
-			count = count + 1
-			if trimmed:find("%*/") then
-				in_block = false
-			end
-		elseif trimmed:match("^%-%-") or trimmed:match("^//") then
-			count = count + 1
-		elseif trimmed:match("^/%*") then
-			count = count + 1
-			if not trimmed:find("%*/") then
-				in_block = true
-			end
-		else
-			break
-		end
-	end
-	return count
-end
-
 local function network_icon(kind)
 	if kind == "error" then
 		return "⇣", "DiagnosticError"
@@ -470,10 +441,8 @@ end
 local function gather_candidates(buf, base_line, method, terms)
 	local do_bench = state.opts.benchmark_enabled ~= false and state.opts.benchmark_enabled
 	local t_start = do_bench and vim.loop.hrtime() or nil
-	local used_index = false
 	local ok_index, index = pcall(require, "console_inline.index")
 	if state.opts.use_index ~= false and ok_index and state.buffer_index and state.buffer_index[buf] then
-		used_index = true
 		local token_list = {}
 		for _, t in ipairs(terms or {}) do
 			token_list[#token_list + 1] = t:lower()
@@ -1042,25 +1011,21 @@ function M.render_message(msg)
 			local max = vim.api.nvim_buf_line_count(buf)
 			local candidates_found = {}
 
-			-- Try Tree-sitter first if available
-			local use_ts = state.opts.use_treesitter ~= false
-			local has_ts, ts_mod = pcall(require, "console_inline.treesitter")
-			local ts_contexts = {}
-			if use_ts and has_ts then
-				-- Collect Tree-sitter contexts for forward lines
-				for offset = 1, 30 do
-					local check_line = base_line + offset
-					if check_line >= 0 and check_line < max then
-						local ctx = ts_mod.context_for(buf, check_line)
-						if ctx and (ctx.has_throw_stmt or ctx.has_error_new or ctx.has_promise_reject) then
-							ts_contexts[check_line] = ctx
-							table.insert(candidates_found, { line = check_line, offset = offset, from_ts = true })
-						end
+		-- Try Tree-sitter first if available
+		local use_ts = state.opts.use_treesitter ~= false
+		local has_ts, ts_mod = pcall(require, "console_inline.treesitter")
+		if use_ts and has_ts then
+			-- Collect Tree-sitter contexts for forward lines
+			for offset = 1, 30 do
+				local check_line = base_line + offset
+				if check_line >= 0 and check_line < max then
+					local ctx = ts_mod.context_for(buf, check_line)
+					if ctx and (ctx.has_throw_stmt or ctx.has_error_new or ctx.has_promise_reject) then
+						table.insert(candidates_found, { line = check_line, offset = offset, from_ts = true })
 					end
 				end
 			end
-
-			-- If Tree-sitter didn't find anything, fall back to regex
+		end			-- If Tree-sitter didn't find anything, fall back to regex
 			if #candidates_found == 0 then
 				for offset = 1, 30 do
 					local check_line = base_line + offset

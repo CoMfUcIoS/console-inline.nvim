@@ -15,14 +15,12 @@
 -- along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 local M = {}
-local state = require("console_inline.state")
 local log = require("console_inline.log")
 
--- Cache per buffer: { parser = <parser>, ts = last_parse_time, tree = <tree>, lang = 'javascript'|'typescript'|'tsx', ctx = { <line->context> } }
+-- Cache per buffer:
+-- { parser = <parser>, ts = last_parse_time, tree = <tree>,
+--   lang = 'javascript'|'typescript'|'tsx', ctx = { <line->context> } }
 M.cache = {}
-
--- Languages we attempt in order for JS/TS buffers.
-local preferred_langs = { "typescript", "tsx", "javascript" }
 
 local function guess_lang(buf)
 	local ft = vim.bo[buf].filetype
@@ -115,7 +113,7 @@ local function build_context(buf, tree, lang)
 	local ctx = {}
 	for id, node, _ in query:iter_captures(root, buf, 0, root:end_()) do
 		local cap = query.captures[id]
-		local sr, sc, er, ec = node:range()
+		local sr, _, er = node:range()
 		local function mark_lines(flag)
 			for line = sr, er do
 				ctx[line] = ctx[line] or {}

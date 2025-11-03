@@ -162,7 +162,7 @@ function M.lookup(buf, tokens, method)
 	-- method literal boost
 	local method_literal = method and method:match("^[%w_]+$") and ("console." .. method) or nil
 	if method_literal then
-		for line_nr, meta in pairs(idx.lines) do
+		for line_nr, _ in pairs(idx.lines) do
 			local line = vim.api.nvim_buf_get_lines(buf, line_nr, line_nr + 1, false)[1]
 			if line and line:find(method_literal, 1, true) then
 				add(line_nr)

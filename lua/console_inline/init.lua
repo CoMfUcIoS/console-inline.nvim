@@ -239,9 +239,9 @@ function M.setup(opts)
 			vim.notify("console-inline: indexing disabled via opts.use_index", vim.log.levels.WARN)
 			return
 		end
-		-- Benchmark command: synthetic candidate resolution performance
-		vim.api.nvim_create_user_command("ConsoleInlineBenchmark", function(opts)
-			local iterations = tonumber(opts.args) or 100
+	-- Benchmark command: synthetic candidate resolution performance
+	vim.api.nvim_create_user_command("ConsoleInlineBenchmark", function(cmd_opts)
+		local iterations = tonumber(cmd_opts.args) or 100
 			local buf = vim.api.nvim_get_current_buf()
 			if iterations <= 0 then
 				iterations = 50
@@ -297,7 +297,7 @@ function M.setup(opts)
 			local token_count = 0
 			local network_lines = 0
 			if idx then
-				for ln, meta in pairs(idx.lines) do
+				for _, meta in pairs(idx.lines) do
 					if meta.console then
 						console_lines = console_lines + 1
 					end
