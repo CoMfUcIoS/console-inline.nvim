@@ -382,11 +382,12 @@ function M.setup(opts)
 					end
 					local stats_ts = require("console_inline.state").treesitter_stats
 					summary[#summary + 1] = string.format(
-						"treesitter active=true lang=%s ctx_lines=%d full=%d partial=%d",
+						"treesitter active=true lang=%s ctx_lines=%d full=%d partial=%d range=%d",
 						cache.lang or "unknown",
 						ctx_count,
 						stats_ts.full_rebuilds,
-						stats_ts.partial_rebuilds
+						stats_ts.partial_rebuilds,
+						stats_ts.range_rebuilds
 					)
 				else
 					summary[#summary + 1] = "treesitter active=true (no cache for buffer yet)"

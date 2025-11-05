@@ -19,8 +19,10 @@ local log = require("console_inline.log")
 
 -- Cache per buffer:
 -- { parser = <parser>, ts = last_parse_time, tree = <tree>,
---   lang = 'javascript'|'typescript'|'tsx', ctx = { <line->context> } }
+--   lang = 'javascript'|'typescript'|'tsx', ctx = { <line->context> },
+--   last_change = { start_row, old_end_row, new_end_row } }
 M.cache = {}
+M.attached_buffers = {}
 
 local function guess_lang(buf)
 	local ft = vim.bo[buf].filetype
@@ -276,12 +278,52 @@ function M.activate()
 		pending[buf] = nil
 		log.debug("treesitter partial window updated", { buf = buf, start_row = start_row, end_row = end_row })
 	end
+
+	local function rebuild_range(buf, start_row, end_row)
+		local lang = guess_lang(buf)
+		if not lang then return end
+		local tree, perr = parse(buf)
+		if not tree then
+			log.debug("treesitter.range parse failed", perr)
+			return
+		end
+		M.cache[buf] = M.cache[buf] or {}
+		local cache = M.cache[buf]
+		cache.tree = tree
+		cache.lang = lang
+		-- Invalidate and rebuild only the affected range
+		cache.ctx = build_context_window(buf, tree, lang, start_row, end_row, cache.ctx)
+		cache.ts = vim.loop.now()
+		local st = require("console_inline.state").treesitter_stats
+		st.range_rebuilds = st.range_rebuilds + 1
+		pending[buf] = nil
+		log.debug("treesitter range updated", { buf = buf, start_row = start_row, end_row = end_row })
+	end
 	vim.api.nvim_create_autocmd({ "BufReadPost", "BufEnter" }, {
 		group = group,
 		callback = function(args)
 			local buf = args.buf
 			if not vim.api.nvim_buf_is_loaded(buf) then
 				return
+			end
+			-- Attach buffer change listener for precise range tracking
+			if not M.attached_buffers[buf] then
+				M.attached_buffers[buf] = true
+				vim.api.nvim_buf_attach(buf, false, {
+					on_lines = function(_, buf_handle, _, first_line, old_last_line, new_last_line)
+						local cache = M.cache[buf_handle]
+						if not cache then return end
+						-- Store change range for next rebuild
+						cache.last_change = {
+							start_row = first_line,
+							old_end_row = old_last_line - 1,
+							new_end_row = new_last_line - 1,
+						}
+					end,
+					on_detach = function(_, buf_handle)
+						M.attached_buffers[buf_handle] = nil
+					end,
+				})
 			end
 			rebuild_full(buf)
 		end,
@@ -304,7 +346,12 @@ function M.activate()
 						if c and c.ts and (vim.loop.now() - c.ts) >= debounce_ms then
 							local line = vim.api.nvim_win_get_cursor(0)[1] - 1
 							local total = vim.api.nvim_buf_line_count(buf)
-							if total > 3000 then
+							local change = c.last_change
+							-- Use precise range if available and small enough
+							if change and (change.new_end_row - change.start_row) < 50 then
+								rebuild_range(buf, change.start_row, math.min(change.new_end_row, total - 1))
+								c.last_change = nil
+							elseif total > 3000 then
 								rebuild_partial(buf, line)
 							else
 								rebuild_full(buf)
@@ -319,7 +366,12 @@ function M.activate()
 			local line = vim.api.nvim_win_get_cursor(0)[1] - 1
 			local total = vim.api.nvim_buf_line_count(buf)
 			local cache_lines = vim.tbl_count(cache.ctx or {})
-			if total > 3000 then
+			local change = cache.last_change
+			-- Prefer range rebuild for small edits
+			if change and (change.new_end_row - change.start_row) < 50 then
+				rebuild_range(buf, change.start_row, math.min(change.new_end_row, total - 1))
+				cache.last_change = nil
+			elseif total > 3000 then
 				-- Periodically force full rebuild to refresh context drift
 				local st = require("console_inline.state").treesitter_stats
 				if (st.partial_rebuilds % 20) == 0 then

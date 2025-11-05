@@ -74,7 +74,7 @@ local M = {
 		count_scan = 0,
 	},
 	deletion_stats = { sweeps = 0 },
-	treesitter_stats = { full_rebuilds = 0, partial_rebuilds = 0 },
+	treesitter_stats = { full_rebuilds = 0, partial_rebuilds = 0, range_rebuilds = 0 },
 	map_stats = { hit = 0, miss = 0, pending = 0 },
 }
 
