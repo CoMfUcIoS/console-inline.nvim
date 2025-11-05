@@ -158,18 +158,57 @@ function M.build(buf)
 		return
 	end
 	local idx = ensure_buf_index(buf)
-	-- clear existing
-	for line_nr in pairs(idx.lines) do
-		remove_line_tokens(idx, line_nr)
-	end
+	-- clear existing (fast wipe)
+	idx.lines = {}
+	idx.token_map = {}
+	idx.console_lines = idx.console_lines or {}
+	idx.method_map = idx.method_map or {}
+	for k in pairs(idx.method_map) do idx.method_map[k] = nil end
+	for i = #idx.console_lines, 1, -1 do idx.console_lines[i] = nil end
 	local total = vim.api.nvim_buf_line_count(buf)
-	for i = 0, total - 1 do
-		local data = index_line(buf, i)
-		if data then
-			store_index(buf, i, data)
+	idx.last_line_count = total
+	idx.built_until = -1
+	idx.building = false
+	idx.total_lines = total
+	local incremental = (state.opts.incremental_index ~= false) and total > (state.opts.index_batch_size * 4)
+	if not incremental then
+		for i = 0, total - 1 do
+			local data = index_line(buf, i)
+			if data then
+				store_index(buf, i, data)
+			end
+		end
+		idx.built_until = total - 1
+		return
+	end
+	-- incremental build scheduling
+	local batch = math.max(200, state.opts.index_batch_size or 1000)
+	idx.building = true
+	local function step()
+		if not vim.api.nvim_buf_is_loaded(buf) then
+			idx.building = false
+			return
+		end
+		local start = idx.built_until + 1
+		if start >= total then
+			idx.building = false
+			return
+		end
+		local finish = math.min(total - 1, start + batch - 1)
+		for ln = start, finish do
+			local data = index_line(buf, ln)
+			if data then
+				store_index(buf, ln, data)
+			end
+		end
+		idx.built_until = finish
+		if finish < total - 1 then
+			vim.defer_fn(step, 10) -- small delay to yield UI
+		else
+			idx.building = false
 		end
 	end
-	idx.last_line_count = total
+	step()
 end
 
 function M.update_changed(buf, changed_lines)

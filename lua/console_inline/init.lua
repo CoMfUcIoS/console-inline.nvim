@@ -321,6 +321,16 @@ function M.setup(opts)
 				end
 			end
 		end
+		local index_status = "none"
+		if idx then
+			if idx.building then
+				index_status = string.format("building (%d/%d)", (idx.built_until or -1) + 1, idx.total_lines or line_count)
+			elseif (idx.built_until or -1) >= (idx.total_lines or line_count) - 1 then
+				index_status = "complete"
+			else
+				index_status = string.format("partial (%d/%d)", (idx.built_until or -1) + 1, idx.total_lines or line_count)
+			end
+		end
 		local avg_index = stats.count_index > 0 and (stats.total_index_time_ns / stats.count_index) or 0
 		local avg_scan = stats.count_scan > 0 and (stats.total_scan_time_ns / stats.count_scan) or 0
 		local recent = stats.entries[#stats.entries]
@@ -328,6 +338,7 @@ function M.setup(opts)
 			"console-inline diagnostics:",
 			string.format("buffer lines=%d", line_count),
 			string.format("index enabled=%s", tostring(state.opts.use_index)),
+			string.format("index status=%s", index_status),
 			string.format("indexed lines=%d", idx and vim.tbl_count(idx.lines) or 0),
 			string.format("console lines indexed=%d", console_lines),
 			string.format("network lines indexed=%d", network_lines),
