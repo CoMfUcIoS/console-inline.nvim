@@ -3805,6 +3805,8 @@ var debug = (...args) => {
 };
 var server = import_http.default.createServer();
 var wss = new import_websocket_server.default({ server });
+// Track active forwarders for graceful shutdown.
+const __activeForwarders = new Set();
 var createTcpForwarder = () => {
   let client = null;
   let connecting = false;
@@ -3875,9 +3877,16 @@ var createTcpForwarder = () => {
     });
   };
   const enqueue = (payload) => {
+    // When the queue reaches MAX_QUEUE_SIZE we drop the oldest message to keep memory bounded.
+    // First drop is surfaced as a warning; subsequent drops only appear in debug logs.
     if (MAX_QUEUE_SIZE > 0 && queue.length >= MAX_QUEUE_SIZE) {
       queue.shift();
-      debug("Dropping oldest message: queue at capacity");
+      if (!enqueue._warned) {
+        enqueue._warned = true;
+        console.warn("[relay-server] Message dropped: queue reached capacity (MAX_QUEUE_SIZE=", MAX_QUEUE_SIZE, ")");
+      } else {
+        debug("Dropping oldest message: queue at capacity");
+      }
     }
     queue.push(payload);
   };
@@ -3906,6 +3915,7 @@ var createTcpForwarder = () => {
 wss.on("connection", (socket) => {
   debug("New WebSocket connection");
   const forwarder = createTcpForwarder();
+  __activeForwarders.add(forwarder);
   forwarder.ensure();
   socket.on("message", (data) => {
     let str = String(data);
@@ -3914,12 +3924,14 @@ wss.on("connection", (socket) => {
       JSON.parse(str);
       forwarder.send(str);
       debug("Forwarded to TCP:", str);
-      try {
-        require("fs").appendFileSync(LOG_PATH, str + "\n");
-        debug("Appended to log file:", str);
-      } catch (err) {
-        console.error("[relay-server] Failed to append to log file:", err);
-      }
+      // Async, non-blocking log append (replaces previous synchronous call)
+      require("fs").appendFile(LOG_PATH, str + "\n", (err) => {
+        if (err) {
+          console.error("[relay-server] Failed to append to log file:", err);
+        } else {
+          debug("Appended to log file:", str);
+        }
+      });
     } catch (e) {
       debug("Ignored non-JSON message:", str);
     }
@@ -3927,12 +3939,32 @@ wss.on("connection", (socket) => {
   socket.on("close", () => {
     debug("WebSocket closed");
     forwarder.dispose();
+    __activeForwarders.delete(forwarder);
   });
   socket.on("error", (err) => {
     console.error("[relay-server] WebSocket error:", err);
     forwarder.dispose();
+    __activeForwarders.delete(forwarder);
   });
 });
-server.listen(WS_PORT, () => {
+// Bind explicitly to localhost to avoid unintended external exposure.
+server.listen(WS_PORT, '127.0.0.1', () => {
   debug(`WebSocket: ws://127.0.0.1:${WS_PORT} \u2192 log file ${LOG_PATH}`);
 });
+
+// Graceful shutdown handlers.
+const __shutdown = () => {
+  debug('Shutdown initiated');
+  try {
+    for (const f of __activeForwarders) {
+      try { f.dispose(); } catch (e) { /* ignore */ }
+    }
+    __activeForwarders.clear();
+    wss.close(() => debug('WebSocket server closed'));
+    server.close(() => debug('HTTP server closed'));
+  } catch (e) {
+    console.error('[relay-server] Error during shutdown:', e);
+  }
+};
+process.once('SIGINT', __shutdown);
+process.once('SIGTERM', __shutdown);
