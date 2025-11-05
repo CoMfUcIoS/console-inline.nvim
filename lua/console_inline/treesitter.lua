@@ -172,8 +172,12 @@ local function build_context_window(buf, tree, lang, start_row, end_row, existin
 	for id, node, _ in query:iter_captures(root, buf, start_row, end_row + 1) do
 		local cap = query.captures[id]
 		local sr, _, er = node:range()
-		if sr < start_row then sr = start_row end
-		if er > end_row then er = end_row end
+		if sr < start_row then
+			sr = start_row
+		end
+		if er > end_row then
+			er = end_row
+		end
 		local function mark_lines(flag)
 			for line = sr, er do
 				ctx[line] = ctx[line] or {}
@@ -270,7 +274,9 @@ function M.activate()
 		local start_row = math.max(0, cursor_line - window)
 		local end_row = cursor_line + window
 		local total = vim.api.nvim_buf_line_count(buf)
-		if end_row > total - 1 then end_row = total - 1 end
+		if end_row > total - 1 then
+			end_row = total - 1
+		end
 		cache.ctx = build_context_window(buf, tree, lang, start_row, end_row, cache.ctx)
 		cache.ts = vim.loop.now()
 		local st = require("console_inline.state").treesitter_stats
@@ -365,7 +371,6 @@ function M.activate()
 			end
 			local line = vim.api.nvim_win_get_cursor(0)[1] - 1
 			local total = vim.api.nvim_buf_line_count(buf)
-			local cache_lines = vim.tbl_count(cache.ctx or {})
 			local change = cache.last_change
 			-- Prefer range rebuild for small edits
 			if change and (change.new_end_row - change.start_row) < 50 then
