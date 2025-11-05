@@ -163,8 +163,12 @@ function M.build(buf)
 	idx.token_map = {}
 	idx.console_lines = idx.console_lines or {}
 	idx.method_map = idx.method_map or {}
-	for k in pairs(idx.method_map) do idx.method_map[k] = nil end
-	for i = #idx.console_lines, 1, -1 do idx.console_lines[i] = nil end
+	for k in pairs(idx.method_map) do
+		idx.method_map[k] = nil
+	end
+	for i = #idx.console_lines, 1, -1 do
+		idx.console_lines[i] = nil
+	end
 	local total = vim.api.nvim_buf_line_count(buf)
 	idx.last_line_count = total
 	idx.built_until = -1
