@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.0.0](https://github.com/CoMfUcIoS/console-inline.nvim/compare/@console-inline/service-v1.7.0...@console-inline/service-v2.0.0) (2025-11-05)
+
+
+### ⚠ BREAKING CHANGES
+
+* **index:** requires @console-inline/service v1.7.0 and updates index structure; see README for new options.
+
+### Features
+
+* add batching, disposal API, and async relay logging ([7d2ba76](https://github.com/CoMfUcIoS/console-inline.nvim/commit/7d2ba76b643411ed011fdb9e76c5bc78e4ab8d05))
+* **docs:** add console.error example to README ([60ef632](https://github.com/CoMfUcIoS/console-inline.nvim/commit/60ef632acb0ed120736f15e77576e6a0ea2a7115))
+* **index:** add line/method limits & index stats ([7e8a432](https://github.com/CoMfUcIoS/console-inline.nvim/commit/7e8a4323158b36d909873df3360c1a050ae053c5))
+* **server:** add graceful shutdown for relay-server ([df6a261](https://github.com/CoMfUcIoS/console-inline.nvim/commit/df6a261c63214dae594a3857f3c850d6bc7ae5d3))
+
 ## [1.7.0](https://github.com/CoMfUcIoS/console-inline.nvim/compare/@console-inline/service-v1.6.0...@console-inline/service-v1.7.0) (2025-11-03)
 
 
