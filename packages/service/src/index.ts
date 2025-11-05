@@ -327,9 +327,10 @@ function shouldResolveBrowserSourceMaps(): boolean {
     typeof globalThis !== "undefined" &&
     (globalThis as any).__CONSOLE_INLINE_FORCE_SOURCEMAPS__
   ) {
-    originalDebug(
-      "[console-inline] Source maps FORCE ENABLED via globalThis.__CONSOLE_INLINE_FORCE_SOURCEMAPS__",
-    );
+    if (debugEnabled)
+      originalDebug(
+        "[console-inline] Source maps FORCE ENABLED via globalThis.__CONSOLE_INLINE_FORCE_SOURCEMAPS__",
+      );
     sourceMapsEnabledCache = true;
     return true;
   }
@@ -447,12 +448,13 @@ async function preloadBrowserSourceMaps(): Promise<void> {
     return;
 
   sourceMapInitialized = true;
-  originalDebug(
-    "[console-inline][sourcemap] ===== PRELOAD STARTED ===== devEnvironment:",
-    devEnvironment,
-    "isBrowser:",
-    isBrowser,
-  );
+  if (debugEnabled)
+    originalDebug(
+      "[console-inline][sourcemap] ===== PRELOAD STARTED ===== devEnvironment:",
+      devEnvironment,
+      "isBrowser:",
+      isBrowser,
+    );
   debug(
     "[sourcemap] ===== PRELOAD STARTED ===== devEnvironment:",
     devEnvironment,
@@ -509,10 +511,11 @@ async function preloadBrowserSourceMaps(): Promise<void> {
     }
   }
 
-  originalDebug(
-    `[console-inline][sourcemap] Found ${urlsToPreload.length} URLs to preload:`,
-    urlsToPreload,
-  );
+  if (debugEnabled)
+    originalDebug(
+      `[console-inline][sourcemap] Found ${urlsToPreload.length} URLs to preload:`,
+      urlsToPreload,
+    );
   debug(
     `[sourcemap] Found ${urlsToPreload.length} URLs to preload:`,
     urlsToPreload,
@@ -526,9 +529,10 @@ async function preloadBrowserSourceMaps(): Promise<void> {
 
     const succeeded = results.filter((r) => r.status === "fulfilled").length;
     const failed = results.filter((r) => r.status === "rejected").length;
-    originalDebug(
-      `[console-inline][sourcemap] ===== PRELOAD COMPLETE ===== ${succeeded} succeeded, ${failed} failed, cache size: ${browserSourceMapCache.size}`,
-    );
+    if (debugEnabled)
+      originalDebug(
+        `[console-inline][sourcemap] ===== PRELOAD COMPLETE ===== ${succeeded} succeeded, ${failed} failed, cache size: ${browserSourceMapCache.size}`,
+      );
     debug(
       `[sourcemap] ===== PRELOAD COMPLETE ===== ${succeeded} succeeded, ${failed} failed, cache size: ${browserSourceMapCache.size}`,
     );
@@ -570,20 +574,23 @@ function applyBrowserSourceMap(
 ): { source: string; line: number; column: number } | null {
   if (!shouldResolveBrowserSourceMaps()) return null;
 
-  originalDebug(
-    `[console-inline][sourcemap] applyBrowserSourceMap called with: ${fileUrl}:${generatedLine}:${generatedColumn}`,
-  );
+  if (debugEnabled)
+    originalDebug(
+      `[console-inline][sourcemap] applyBrowserSourceMap called with: ${fileUrl}:${generatedLine}:${generatedColumn}`,
+    );
 
   // Try to find source map with URL normalization
   const urlVariants = normalizeFileUrl(fileUrl);
-  originalDebug(
-    `[console-inline][sourcemap] URL variants for lookup:`,
-    urlVariants,
-  );
-  originalDebug(
-    `[console-inline][sourcemap] Cache has ${browserSourceMapCache.size} entries:`,
-    Array.from(browserSourceMapCache.keys()),
-  );
+  if (debugEnabled)
+    originalDebug(
+      `[console-inline][sourcemap] URL variants for lookup:`,
+      urlVariants,
+    );
+  if (debugEnabled)
+    originalDebug(
+      `[console-inline][sourcemap] Cache has ${browserSourceMapCache.size} entries:`,
+      Array.from(browserSourceMapCache.keys()),
+    );
 
   let sourceMap: any = null;
   let matchedUrl: string | null = null;
@@ -597,15 +604,17 @@ function applyBrowserSourceMap(
   }
 
   if (!sourceMap) {
-    originalDebug(
-      `[console-inline][sourcemap] NO MAP FOUND for any variant of ${fileUrl}`,
-    );
+    if (debugEnabled)
+      originalDebug(
+        `[console-inline][sourcemap] NO MAP FOUND for any variant of ${fileUrl}`,
+      );
     return null;
   }
 
-  originalDebug(
-    `[console-inline][sourcemap] Found map for ${matchedUrl}, attempting to use trace-mapping...`,
-  );
+  if (debugEnabled)
+    originalDebug(
+      `[console-inline][sourcemap] Found map for ${matchedUrl}, attempting to use trace-mapping...`,
+    );
 
   try {
     // Use the imported trace-mapping library
@@ -614,7 +623,10 @@ function applyBrowserSourceMap(
       !traceMapping.TraceMap ||
       !traceMapping.originalPositionFor
     ) {
-      originalDebug(`[console-inline][sourcemap] trace-mapping not available`);
+      if (debugEnabled)
+        originalDebug(
+          `[console-inline][sourcemap] trace-mapping not available`,
+        );
       return null;
     }
 
@@ -628,24 +640,27 @@ function applyBrowserSourceMap(
     });
 
     if (originalPos && originalPos.source && originalPos.line != null) {
-      originalDebug(
-        `[console-inline][sourcemap] MAPPED ${fileUrl}:${generatedLine}:${generatedColumn} → ${originalPos.source}:${originalPos.line}:${originalPos.column}`,
-      );
+      if (debugEnabled)
+        originalDebug(
+          `[console-inline][sourcemap] MAPPED ${fileUrl}:${generatedLine}:${generatedColumn} → ${originalPos.source}:${originalPos.line}:${originalPos.column}`,
+        );
       return {
         source: originalPos.source,
         line: originalPos.line,
         column: originalPos.column ?? generatedColumn,
       };
     } else {
-      originalDebug(
-        `[console-inline][sourcemap] originalPositionFor returned no valid position`,
-      );
+      if (debugEnabled)
+        originalDebug(
+          `[console-inline][sourcemap] originalPositionFor returned no valid position`,
+        );
     }
   } catch (err) {
-    originalDebug(
-      `[console-inline][sourcemap] Error applying source map:`,
-      err,
-    );
+    if (debugEnabled)
+      originalDebug(
+        `[console-inline][sourcemap] Error applying source map:`,
+        err,
+      );
   }
 
   return null;
@@ -718,17 +733,19 @@ function captureCallSite(options?: { skip?: number }): CallSite {
 
   // Apply browser source map transformation if available
   if (isBrowser && file !== "unknown" && shouldResolveBrowserSourceMaps()) {
-    originalDebug(
-      `[console-inline][sourcemap] captureCallSite: attempting to map ${file}:${line}:${column}`,
-    );
+    if (debugEnabled)
+      originalDebug(
+        `[console-inline][sourcemap] captureCallSite: attempting to map ${file}:${line}:${column}`,
+      );
     debug(
       `[sourcemap] captureCallSite: attempting to map ${file}:${line}:${column}`,
     );
     const mapped = applyBrowserSourceMap(file, line, column);
     if (mapped) {
-      originalDebug(
-        `[console-inline][sourcemap] MAPPED ${file}:${line}:${column} -> ${mapped.source}:${mapped.line}:${mapped.column}`,
-      );
+      if (debugEnabled)
+        originalDebug(
+          `[console-inline][sourcemap] MAPPED ${file}:${line}:${column} -> ${mapped.source}:${mapped.line}:${mapped.column}`,
+        );
       debug(
         `[sourcemap] Mapped ${file}:${line}:${column} -> ${mapped.source}:${mapped.line}:${mapped.column}`,
       );
@@ -1772,9 +1789,10 @@ function patchConsole() {
       const stackString = callsite.stack;
 
       if (callsite.original_file) {
-        originalDebug(
-          `[console-inline][sourcemap] USING MAPPED: ${callsite.file}:${callsite.line}:${callsite.column} → ${file}:${line}:${column} [${callsite.mapping_status}]`,
-        );
+        if (debugEnabled)
+          originalDebug(
+            `[console-inline][sourcemap] USING MAPPED: ${callsite.file}:${callsite.line}:${callsite.column} → ${file}:${line}:${column} [${callsite.mapping_status}]`,
+          );
         debug(
           `[sourcemap] USING MAPPED: ${callsite.file}:${callsite.line}:${callsite.column} → ${file}:${line}:${column} [${callsite.mapping_status}]`,
         );
@@ -1836,9 +1854,10 @@ if (devEnvironment) {
 
     // Preload browser source maps for better coordinate mapping
     const sourceMapsEnabled = shouldResolveBrowserSourceMaps();
-    originalDebug(
-      `[console-inline][sourcemap] Initialization: sourceMapsEnabled=${sourceMapsEnabled}, devEnvironment=${devEnvironment}`,
-    );
+    if (debugEnabled)
+      originalDebug(
+        `[console-inline][sourcemap] Initialization: sourceMapsEnabled=${sourceMapsEnabled}, devEnvironment=${devEnvironment}`,
+      );
     debug(
       `[sourcemap] Initialization: sourceMapsEnabled=${sourceMapsEnabled}, devEnvironment=${devEnvironment}`,
     );
