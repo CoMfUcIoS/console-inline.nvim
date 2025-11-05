@@ -345,6 +345,7 @@ function M.setup(opts)
 			string.format("total tokens=%d", token_count),
 			string.format("methods tracked=%d", idx and (idx.method_map and vim.tbl_count(idx.method_map) or 0) or 0),
 			string.format("console_lines array size=%d", idx and (idx.console_lines and #idx.console_lines or 0) or 0),
+			string.format("deletion sweeps=%d", state.deletion_stats.sweeps),
 			string.format("avg index candidate time=%.3fms", avg_index / 1e6),
 			string.format("avg scan candidate time=%.3fms", avg_scan / 1e6),
 			string.format("index calls=%d scan calls=%d", stats.count_index, stats.count_scan),
@@ -379,8 +380,14 @@ function M.setup(opts)
 					for _ in pairs(cache.ctx or {}) do
 						ctx_count = ctx_count + 1
 					end
-					summary[#summary + 1] =
-						string.format("treesitter active=true lang=%s ctx_lines=%d", cache.lang or "unknown", ctx_count)
+					local stats_ts = require("console_inline.state").treesitter_stats
+					summary[#summary + 1] = string.format(
+						"treesitter active=true lang=%s ctx_lines=%d full=%d partial=%d",
+						cache.lang or "unknown",
+						ctx_count,
+						stats_ts.full_rebuilds,
+						stats_ts.partial_rebuilds
+					)
 				else
 					summary[#summary + 1] = "treesitter active=true (no cache for buffer yet)"
 				end

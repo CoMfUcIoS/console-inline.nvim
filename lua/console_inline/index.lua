@@ -239,6 +239,7 @@ function M.handle_deletions(buf)
 			remove_line_tokens(idx, line_nr)
 		end
 	end
+	state.deletion_stats.sweeps = (state.deletion_stats.sweeps or 0) + 1
 	idx.last_line_count = total
 end
 

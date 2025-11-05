@@ -36,7 +36,7 @@ local M = {
 		skip_long_lines_len = 4000, -- skip indexing lines longer than this (likely minified/bundled)
 		treesitter_debounce_ms = 120, -- minimum interval between full tree/context rebuilds
 		incremental_index = true, -- progressively build very large buffer indexes to avoid UI stalls
-		index_batch_size = 1200, -- lines per batch when incremental_index true
+		index_batch_size = 900, -- lines per batch when incremental_index true (tuned for smoother UI)
 		benchmark_enabled = false, -- collect timing stats when true
 		prefer_original_source = true, -- trust original_* fields if emitted by service for placement
 		resolve_source_maps = true, -- ask service to resolve source maps when available
@@ -73,6 +73,8 @@ local M = {
 		count_index = 0,
 		count_scan = 0,
 	},
+	deletion_stats = { sweeps = 0 },
+	treesitter_stats = { full_rebuilds = 0, partial_rebuilds = 0 },
 	map_stats = { hit = 0, miss = 0, pending = 0 },
 }
 

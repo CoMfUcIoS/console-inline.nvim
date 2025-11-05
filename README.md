@@ -83,6 +83,11 @@ All console output will be sent to Neovim as virtual text automatically. No manu
     -- Performance & placement
     use_index = true,                      -- Enable fast buffer indexing (critical)
     use_treesitter = true,                 -- Enable Tree-sitter for accurate placement
+    max_tokens_per_line = 120,             -- Cap tokens per line (prevents minified file bloat)
+    skip_long_lines_len = 4000,            -- Skip indexing very long lines (likely bundled)
+    incremental_index = true,              -- Build large file indexes in batches (smooth UI)
+    index_batch_size = 900,                -- Lines per incremental batch (balanced responsiveness)
+    treesitter_debounce_ms = 120,          -- Debounce Tree-sitter rebuilds (avoid edit churn)
     prefer_original_source = true,         -- Trust source maps (TypeScript/JSX locations)
     resolve_source_maps = true,            -- Enable source map resolution
     benchmark_enabled = false,             -- Disable benchmark overhead
@@ -143,26 +148,53 @@ All console output will be sent to Neovim as virtual text automatically. No manu
 
 ```lua
 require('console_inline').setup({
+  -- Server
   host = '127.0.0.1',
   port = 36123,
+  autostart = true,
+  autostart_relay = true,
+  
+  -- Behavior
   open_missing_files = false,
+  replay_persisted_logs = false,
+  suppress_css_color_conflicts = true,
+  
+  -- Display
   throttle_ms = 30,
   max_len = 160,
   severity_filter = { log = true, info = true, warn = true, error = true },
-  autostart_relay = true,
-  replay_persisted_logs = false,
-  suppress_css_color_conflicts = true,
+  
+  -- Performance (recommended for large files)
+  use_index = true,                      -- Enable fast buffer indexing
+  use_treesitter = true,                 -- Tree-sitter assisted placement (JS/TS/TSX)
+  max_tokens_per_line = 120,             -- Cap tokens per line (minified file protection)
+  skip_long_lines_len = 4000,            -- Skip very long lines (likely bundled)
+  incremental_index = true,              -- Batch index builds for large files
+  index_batch_size = 900,                -- Lines per batch (smooth UI, triggers at ~3600 lines)
+  treesitter_debounce_ms = 120,          -- Debounce rebuilds (uses partial updates >3000 lines)
+  
+  -- Source mapping
+  prefer_original_source = true,         -- Use source map coordinates when available
+  resolve_source_maps = true,            -- Enable source map resolution
+  show_original_and_transformed = false, -- Show both coordinate sets in popup
+  
+  -- Diagnostics
+  benchmark_enabled = false,             -- Collect timing stats (disable in production)
+  
+  -- History & UI
   history_size = 200,
   pattern_overrides = nil,
   filters = nil,
-  use_treesitter = true,        -- leverage Tree-sitter (JS/TS/TSX) for accurate structural placement
-  treesitter_debounce_ms = 120,  -- minimum ms between full context rebuilds (avoid churn on rapid edits)
-  use_index = true,             -- set false to disable buffer indexing & revert to full scans
-  max_tokens_per_line = 120,    -- cap tokens collected per line (prevents huge minified lines dominating index)
-  skip_long_lines_len = 4000,   -- skip indexing lines longer than this many chars (likely minified/bundled)
-  prefer_original_source = true, -- trust original_* coordinates from service (source maps / transforms)
-  resolve_source_maps = true,    -- attempt Node/browser source map resolution (CONSOLE_INLINE_SOURCE_MAPS env overrides)
-  show_original_and_transformed = false, -- popup shows both coord sets when they differ
+  hover = {
+    enabled = true,
+    events = { "CursorHold" },
+    hide_events = { "CursorMoved", "CursorMovedI", "InsertEnter", "BufLeave" },
+    border = "rounded",
+    focusable = false,
+    relative = "cursor",
+    row = 1,
+    col = 0,
+  },
 })
 ```
 
@@ -183,7 +215,9 @@ require('console_inline').setup({
 -- `use_index` — when `true` (default) builds a lightweight per-buffer token index for fast, more accurate virtual text placement. Disable to fall back to naive scanning if you suspect indexing issues.
 -- `max_tokens_per_line` — hard upper bound on tokens extracted from a single line; prevents pathological memory/time use on very long (minified) lines.
 -- `skip_long_lines_len` — lines exceeding this character length are ignored by the index (still eligible for placement via scans); avoids spending time on giant bundles.
--- `treesitter_debounce_ms` — coalesces rapid `TextChanged` events; Tree-sitter context rebuild waits until edits settle for at least this many ms.
+-- `incremental_index` — when `true`, very large buffers (heuristic: > 4 * `index_batch_size` lines) are indexed incrementally in deferred chunks so Neovim remains responsive. Diagnostics show status (`building`, `partial`, `complete`).
+-- `index_batch_size` — approximate number of lines processed per incremental slice (default 900). Increase for faster completion; decrease if you still notice brief hitches. Large file heuristic triggers incremental when > 4 * batch size (~3600 lines).
+-- `treesitter_debounce_ms` — coalesces rapid `TextChanged` events; Tree-sitter context rebuild waits until edits settle for at least this many ms. Large buffers (>3000 lines) now use partial windowed rebuilds (±150 lines around cursor) with a full refresh every 20 partials to control drift.
 - `use_treesitter` — when `true` attempts a Tree-sitter parser (typescript, tsx, javascript) to extract structural context (function/class boundaries, console/fetch/error calls) for refined placement. Falls back silently if parser absent.
 - `prefer_original_source` — when `true` (default) the renderer prefers `original_file`, `original_line`, and `original_column` emitted by the service over transformed coordinates.
 - `resolve_source_maps` — when `true` (default) service tries to read sibling `*.js.map` files (Node) to recover authored locations; override with `CONSOLE_INLINE_SOURCE_MAPS=true|false`.

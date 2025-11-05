@@ -156,6 +156,57 @@ local function build_context(buf, tree, lang)
 	return ctx
 end
 
+local function build_context_window(buf, tree, lang, start_row, end_row, existing_ctx)
+	local root = tree:root()
+	local query = get_query(lang)
+	if not query then
+		return existing_ctx or {}
+	end
+	local ctx = existing_ctx or {}
+	-- purge previous flags in window
+	for ln = start_row, end_row do
+		ctx[ln] = nil
+	end
+	for id, node, _ in query:iter_captures(root, buf, start_row, end_row + 1) do
+		local cap = query.captures[id]
+		local sr, _, er = node:range()
+		if sr < start_row then sr = start_row end
+		if er > end_row then er = end_row end
+		local function mark_lines(flag)
+			for line = sr, er do
+				ctx[line] = ctx[line] or {}
+				ctx[line][flag] = true
+			end
+		end
+		if cap == "fn_name" then
+			ctx[sr] = ctx[sr] or {}
+			ctx[sr].function_name = vim.treesitter.get_node_text(node, buf)
+		elseif cap == "class_name" then
+			ctx[sr] = ctx[sr] or {}
+			ctx[sr].class_name = vim.treesitter.get_node_text(node, buf)
+		elseif cap == "console_call" then
+			mark_lines("has_console_call")
+		elseif cap == "console_method" then
+			ctx[sr] = ctx[sr] or {}
+			ctx[sr].console_method_name = vim.treesitter.get_node_text(node, buf)
+		elseif cap == "fetch_call" then
+			mark_lines("has_fetch_call")
+		elseif cap == "error_new" then
+			mark_lines("has_error_new")
+		elseif cap == "promise_reject" then
+			mark_lines("has_promise_reject")
+		elseif cap == "promise_obj" or cap == "reject_method" then
+			local text = vim.treesitter.get_node_text(node, buf)
+			if (cap == "promise_obj" and text == "Promise") or (cap == "reject_method" and text == "reject") then
+				mark_lines("has_promise_reject")
+			end
+		elseif cap == "throw_stmt" then
+			mark_lines("has_throw_stmt")
+		end
+	end
+	return ctx
+end
+
 local function parse(buf)
 	local parser, err = get_parser(buf)
 	if not parser then
@@ -179,7 +230,7 @@ function M.activate()
 	local group = vim.api.nvim_create_augroup("ConsoleInlineTS", { clear = true })
 	local debounce_ms = require("console_inline.state").opts.treesitter_debounce_ms or 120
 	local pending = {}
-	local function rebuild(buf)
+	local function rebuild_full(buf)
 		local lang = guess_lang(buf)
 		if not lang then
 			return
@@ -194,8 +245,36 @@ function M.activate()
 		M.cache[buf].lang = lang
 		M.cache[buf].ctx = build_context(buf, tree, lang)
 		M.cache[buf].ts = vim.loop.now()
+		M.cache[buf].last_full_ts = M.cache[buf].ts
+		local st = require("console_inline.state").treesitter_stats
+		st.full_rebuilds = st.full_rebuilds + 1
 		pending[buf] = nil
 		log.debug("treesitter cache built", { buf = buf, lang = lang })
+	end
+
+	local function rebuild_partial(buf, cursor_line)
+		local lang = guess_lang(buf)
+		if not lang then return end
+		local tree, perr = parse(buf)
+		if not tree then
+			log.debug("treesitter.partial parse failed", perr)
+			return
+		end
+		M.cache[buf] = M.cache[buf] or {}
+		local cache = M.cache[buf]
+		cache.tree = tree
+		cache.lang = lang
+		local window = 150
+		local start_row = math.max(0, cursor_line - window)
+		local end_row = cursor_line + window
+		local total = vim.api.nvim_buf_line_count(buf)
+		if end_row > total - 1 then end_row = total - 1 end
+		cache.ctx = build_context_window(buf, tree, lang, start_row, end_row, cache.ctx)
+		cache.ts = vim.loop.now()
+		local st = require("console_inline.state").treesitter_stats
+		st.partial_rebuilds = st.partial_rebuilds + 1
+		pending[buf] = nil
+		log.debug("treesitter partial window updated", { buf = buf, start_row = start_row, end_row = end_row })
 	end
 	vim.api.nvim_create_autocmd({ "BufReadPost", "BufEnter" }, {
 		group = group,
@@ -204,7 +283,7 @@ function M.activate()
 			if not vim.api.nvim_buf_is_loaded(buf) then
 				return
 			end
-			rebuild(buf)
+			rebuild_full(buf)
 		end,
 	})
 	vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
@@ -223,7 +302,13 @@ function M.activate()
 						-- Only rebuild if no newer parse happened meanwhile
 						local c = M.cache[buf]
 						if c and c.ts and (vim.loop.now() - c.ts) >= debounce_ms then
-							rebuild(buf)
+							local line = vim.api.nvim_win_get_cursor(0)[1] - 1
+							local total = vim.api.nvim_buf_line_count(buf)
+							if total > 3000 then
+								rebuild_partial(buf, line)
+							else
+								rebuild_full(buf)
+							end
 						else
 							pending[buf] = nil
 						end
@@ -231,7 +316,20 @@ function M.activate()
 				end
 				return
 			end
-			rebuild(buf)
+			local line = vim.api.nvim_win_get_cursor(0)[1] - 1
+			local total = vim.api.nvim_buf_line_count(buf)
+			local cache_lines = vim.tbl_count(cache.ctx or {})
+			if total > 3000 then
+				-- Periodically force full rebuild to refresh context drift
+				local st = require("console_inline.state").treesitter_stats
+				if (st.partial_rebuilds % 20) == 0 then
+					rebuild_full(buf)
+				else
+					rebuild_partial(buf, line)
+				end
+			else
+				rebuild_full(buf)
+			end
 		end,
 	})
 	return true
