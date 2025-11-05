@@ -106,27 +106,37 @@ const toBool = (value: unknown): boolean | null => {
   return null;
 };
 
+// Returns explicit enable/disable override:
+// - CONSOLE_INLINE_ENABLED=true => true
+// - CONSOLE_INLINE_ENABLED=false => false
+// - CONSOLE_INLINE_DISABLED=true => false
+// - CONSOLE_INLINE_DISABLED=false => true (only if ENABLED not set)
+// If neither is set (or both unset/unparseable) returns null.
 const resolveExplicitToggle = (): boolean | null => {
-  const candidates: unknown[] = [];
+  let enabledRaw: unknown = null;
+  let disabledRaw: unknown = null;
+  // Collect from process env / import.meta.env / globalThis
   if (typeof process !== "undefined" && process.env) {
-    candidates.push(process.env.CONSOLE_INLINE_ENABLED);
-    candidates.push(process.env.CONSOLE_INLINE_DISABLED);
+    enabledRaw = process.env.CONSOLE_INLINE_ENABLED ?? enabledRaw;
+    disabledRaw = process.env.CONSOLE_INLINE_DISABLED ?? disabledRaw;
   }
   if (typeof import.meta !== "undefined" && (import.meta as any).env) {
     const env = (import.meta as any).env;
-    candidates.push(env.CONSOLE_INLINE_ENABLED);
-    candidates.push(env.CONSOLE_INLINE_DISABLED);
+    enabledRaw = env.CONSOLE_INLINE_ENABLED ?? enabledRaw;
+    disabledRaw = env.CONSOLE_INLINE_DISABLED ?? disabledRaw;
   }
   if (typeof globalThis !== "undefined") {
     const g = globalThis as Record<string, unknown>;
-    candidates.push(g.CONSOLE_INLINE_ENABLED);
-    candidates.push(g.CONSOLE_INLINE_DISABLED);
+    enabledRaw = g.CONSOLE_INLINE_ENABLED ?? enabledRaw;
+    disabledRaw = g.CONSOLE_INLINE_DISABLED ?? disabledRaw;
   }
-  for (const value of candidates) {
-    const bool = toBool(value);
-    if (bool !== null) {
-      return bool;
-    }
+  const enabled = toBool(enabledRaw);
+  if (enabled !== null) {
+    return enabled; // direct interpretation
+  }
+  const disabled = toBool(disabledRaw);
+  if (disabled !== null) {
+    return disabled ? false : true; // disabled=true => false, disabled=false => true
   }
   return null;
 };
@@ -180,6 +190,16 @@ const debugEnabled = (() => {
 })();
 
 const devEnvironment = determineDevEnvironment();
+if (!devEnvironment) {
+  // One-time advisory when service loads but chooses inactivity.
+  try {
+    originalDebug(
+      "[console-inline] inactive (devEnvironment=false) - set CONSOLE_INLINE_ENABLED=true to force enable",
+    );
+  } catch (_err) {
+    /* ignore */
+  }
+}
 
 const timers = new Map<string, number>();
 

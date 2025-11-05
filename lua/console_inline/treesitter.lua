@@ -57,6 +57,12 @@ local function get_parser(buf)
 	end
 	local ok, parser = pcall(vim.treesitter.get_parser, buf, lang)
 	if not ok then
+		local cache = M.cache[buf] or {}
+		if not cache.warned_unavailable then
+			cache.warned_unavailable = true
+			M.cache[buf] = cache
+			log.debug("treesitter parser unavailable once", lang)
+		end
 		return nil, "parser unavailable for " .. lang
 	end
 	return parser, nil
@@ -171,6 +177,26 @@ function M.activate()
 	end
 	-- Setup autocommands for incremental parsing.
 	local group = vim.api.nvim_create_augroup("ConsoleInlineTS", { clear = true })
+	local debounce_ms = require("console_inline.state").opts.treesitter_debounce_ms or 120
+	local pending = {}
+	local function rebuild(buf)
+		local lang = guess_lang(buf)
+		if not lang then
+			return
+		end
+		local tree, perr = parse(buf)
+		if not tree then
+			log.debug("treesitter.parse failed", perr)
+			return
+		end
+		M.cache[buf] = M.cache[buf] or {}
+		M.cache[buf].tree = tree
+		M.cache[buf].lang = lang
+		M.cache[buf].ctx = build_context(buf, tree, lang)
+		M.cache[buf].ts = vim.loop.now()
+		pending[buf] = nil
+		log.debug("treesitter cache built", { buf = buf, lang = lang })
+	end
 	vim.api.nvim_create_autocmd({ "BufReadPost", "BufEnter" }, {
 		group = group,
 		callback = function(args)
@@ -178,21 +204,7 @@ function M.activate()
 			if not vim.api.nvim_buf_is_loaded(buf) then
 				return
 			end
-			local lang = guess_lang(buf)
-			if not lang then
-				return
-			end
-			local tree, perr = parse(buf)
-			if not tree then
-				log.debug("treesitter.parse failed", perr)
-				return
-			end
-			M.cache[buf] = M.cache[buf] or {}
-			M.cache[buf].tree = tree
-			M.cache[buf].lang = lang
-			M.cache[buf].ctx = build_context(buf, tree, lang)
-			M.cache[buf].ts = vim.loop.now()
-			log.debug("treesitter cache built", { buf = buf, lang = lang })
+			rebuild(buf)
 		end,
 	})
 	vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
@@ -203,13 +215,23 @@ function M.activate()
 			if not cache or not cache.tree then
 				return
 			end
-			local tree = parse(buf)
-			if not tree then
+			local now = vim.loop.now()
+			if cache.ts and (now - cache.ts) < debounce_ms then
+				if not pending[buf] then
+					pending[buf] = true
+					vim.defer_fn(function()
+						-- Only rebuild if no newer parse happened meanwhile
+						local c = M.cache[buf]
+						if c and c.ts and (vim.loop.now() - c.ts) >= debounce_ms then
+							rebuild(buf)
+						else
+							pending[buf] = nil
+						end
+					end, debounce_ms)
+				end
 				return
 			end
-			cache.tree = tree
-			cache.ctx = build_context(buf, tree, cache.lang)
-			cache.ts = vim.loop.now()
+			rebuild(buf)
 		end,
 	})
 	return true

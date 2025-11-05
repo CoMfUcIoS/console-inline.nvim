@@ -24,7 +24,11 @@ end
 
 local function tokenize(line)
 	local tokens = {}
+	local cap = (state.opts and state.opts.max_tokens_per_line) or 120
 	for tok in line:gmatch("[%w_]+") do
+		if #tokens >= cap then
+			break
+		end
 		if #tok >= 3 and #tok <= 32 then
 			-- lower-case normalized
 			tokens[#tokens + 1] = tok:lower()
@@ -38,17 +42,29 @@ local function index_line(buf, line_nr)
 	if not line or line == "" then
 		return nil
 	end
+	local skip_len = (state.opts and state.opts.skip_long_lines_len) or 4000
+	if #line > skip_len then
+		return nil -- skip extremely long/minified lines
+	end
 	local has_console = line:find("console%.") ~= nil
 	local has_network = line:find("fetch%s*(%()")
 		or line:find("XMLHttpRequest")
 		or line:find(":open%s*(%()")
 		or line:find(":send%s*(%()")
 	local tokens = tokenize(line)
+	local method = nil
+	if has_console then
+		local m = line:match("console%.([%w_]+)")
+		if m then
+			method = m
+		end
+	end
 	return {
 		console = has_console or false,
 		network = has_network or false,
 		comment = is_comment(line) and true or false,
 		tokens = tokens,
+		method = method,
 	}
 end
 
@@ -56,7 +72,7 @@ local function ensure_buf_index(buf)
 	state.buffer_index = state.buffer_index or {}
 	local idx = state.buffer_index[buf]
 	if not idx then
-		idx = { lines = {}, token_map = {} }
+		idx = { lines = {}, token_map = {}, console_lines = {}, method_map = {}, last_line_count = 0 }
 		state.buffer_index[buf] = idx
 	end
 	return idx
@@ -80,6 +96,26 @@ local function remove_line_tokens(idx, line_nr)
 			end
 		end
 	end
+	-- remove from console_lines
+	if prev.console and idx.console_lines then
+		for i = #idx.console_lines, 1, -1 do
+			if idx.console_lines[i] == line_nr then
+				table.remove(idx.console_lines, i)
+			end
+		end
+	end
+	-- remove from method_map
+	if prev.method and idx.method_map and idx.method_map[prev.method] then
+		local arr = idx.method_map[prev.method]
+		for i = #arr, 1, -1 do
+			if arr[i] == line_nr then
+				table.remove(arr, i)
+			end
+		end
+		if #arr == 0 then
+			idx.method_map[prev.method] = nil
+		end
+	end
 	idx.lines[line_nr] = nil
 end
 
@@ -97,6 +133,22 @@ local function store_index(buf, line_nr, data)
 		-- avoid duplicates
 		if arr[#arr] ~= line_nr then
 			arr[#arr + 1] = line_nr
+		end
+	end
+	if data.console then
+		local cl = idx.console_lines
+		if cl[#cl] ~= line_nr then
+			cl[#cl + 1] = line_nr
+		end
+	end
+	if data.method then
+		local mm = idx.method_map[data.method]
+		if not mm then
+			mm = {}
+			idx.method_map[data.method] = mm
+		end
+		if mm[#mm] ~= line_nr then
+			mm[#mm + 1] = line_nr
 		end
 	end
 end
@@ -117,6 +169,7 @@ function M.build(buf)
 			store_index(buf, i, data)
 		end
 	end
+	idx.last_line_count = total
 end
 
 function M.update_changed(buf, changed_lines)
@@ -138,11 +191,16 @@ function M.handle_deletions(buf)
 		return
 	end
 	local total = vim.api.nvim_buf_line_count(buf)
-	for line_nr, _ in pairs(idx.lines) do
-		if line_nr >= total then
+	if total >= idx.last_line_count then
+		idx.last_line_count = total
+		return -- no shrink, nothing to purge
+	end
+	for line_nr = total, idx.last_line_count - 1 do
+		if idx.lines[line_nr] then
 			remove_line_tokens(idx, line_nr)
 		end
 	end
+	idx.last_line_count = total
 end
 
 function M.lookup(buf, tokens, method)
@@ -159,14 +217,10 @@ function M.lookup(buf, tokens, method)
 			candidate_lines[#candidate_lines + 1] = line_nr
 		end
 	end
-	-- method literal boost
-	local method_literal = method and method:match("^[%w_]+$") and ("console." .. method) or nil
-	if method_literal then
-		for line_nr, _ in pairs(idx.lines) do
-			local line = vim.api.nvim_buf_get_lines(buf, line_nr, line_nr + 1, false)[1]
-			if line and line:find(method_literal, 1, true) then
-				add(line_nr)
-			end
+	-- method literal boost via precomputed method_map
+	if method and idx.method_map[method] then
+		for _, line_nr in ipairs(idx.method_map[method]) do
+			add(line_nr)
 		end
 	end
 	for _, tok in ipairs(tokens or {}) do
@@ -177,12 +231,10 @@ function M.lookup(buf, tokens, method)
 			end
 		end
 	end
-	-- Always include pure console lines if we have few candidates
-	if #candidate_lines < 5 then
-		for line_nr, meta in pairs(idx.lines) do
-			if meta.console then
-				add(line_nr)
-			end
+	-- Always include pure console lines if we have few candidates (use console_lines array)
+	if #candidate_lines < 5 and idx.console_lines then
+		for _, line_nr in ipairs(idx.console_lines) do
+			add(line_nr)
 		end
 	end
 	return candidate_lines

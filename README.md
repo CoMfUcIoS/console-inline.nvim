@@ -155,10 +155,13 @@ require('console_inline').setup({
   history_size = 200,
   pattern_overrides = nil,
   filters = nil,
-  use_treesitter = true, -- leverage Tree-sitter (JS/TS/TSX) for accurate structural placement
-  use_index = true, -- set false to disable buffer indexing & revert to full scans
+  use_treesitter = true,        -- leverage Tree-sitter (JS/TS/TSX) for accurate structural placement
+  treesitter_debounce_ms = 120,  -- minimum ms between full context rebuilds (avoid churn on rapid edits)
+  use_index = true,             -- set false to disable buffer indexing & revert to full scans
+  max_tokens_per_line = 120,    -- cap tokens collected per line (prevents huge minified lines dominating index)
+  skip_long_lines_len = 4000,   -- skip indexing lines longer than this many chars (likely minified/bundled)
   prefer_original_source = true, -- trust original_* coordinates from service (source maps / transforms)
-  resolve_source_maps = true, -- attempt Node source map resolution (CONSOLE_INLINE_SOURCE_MAPS env overrides)
+  resolve_source_maps = true,    -- attempt Node/browser source map resolution (CONSOLE_INLINE_SOURCE_MAPS env overrides)
   show_original_and_transformed = false, -- popup shows both coord sets when they differ
 })
 ```
@@ -177,7 +180,10 @@ require('console_inline').setup({
 - `filters` — configure allow/deny lists and severity overrides for specific paths or payload patterns.
 - `hover` — control automatic hover popups (set `enabled = false` to opt out, override `events`, `hide_events`, `border`, etc. to tweak behaviour).
 - `popup_formatter` — optional function(entry) -> lines used for popup formatting; defaults to prettifying JSON via `vim.inspect`.
-- `use_index` — when `true` (default) builds a lightweight per-buffer token index for fast, more accurate virtual text placement. Disable to fall back to naive scanning if you suspect indexing issues.
+-- `use_index` — when `true` (default) builds a lightweight per-buffer token index for fast, more accurate virtual text placement. Disable to fall back to naive scanning if you suspect indexing issues.
+-- `max_tokens_per_line` — hard upper bound on tokens extracted from a single line; prevents pathological memory/time use on very long (minified) lines.
+-- `skip_long_lines_len` — lines exceeding this character length are ignored by the index (still eligible for placement via scans); avoids spending time on giant bundles.
+-- `treesitter_debounce_ms` — coalesces rapid `TextChanged` events; Tree-sitter context rebuild waits until edits settle for at least this many ms.
 - `use_treesitter` — when `true` attempts a Tree-sitter parser (typescript, tsx, javascript) to extract structural context (function/class boundaries, console/fetch/error calls) for refined placement. Falls back silently if parser absent.
 - `prefer_original_source` — when `true` (default) the renderer prefers `original_file`, `original_line`, and `original_column` emitted by the service over transformed coordinates.
 - `resolve_source_maps` — when `true` (default) service tries to read sibling `*.js.map` files (Node) to recover authored locations; override with `CONSOLE_INLINE_SOURCE_MAPS=true|false`.

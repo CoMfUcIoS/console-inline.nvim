@@ -306,6 +306,7 @@ function M.setup(opts)
 		local console_lines = 0
 		local token_count = 0
 		local network_lines = 0
+		local method_kind_counts = {}
 		if idx then
 			for _, meta in pairs(idx.lines) do
 				if meta.console then
@@ -315,6 +316,9 @@ function M.setup(opts)
 					network_lines = network_lines + 1
 				end
 				token_count = token_count + (#meta.tokens or 0)
+				if meta.method then
+					method_kind_counts[meta.method] = (method_kind_counts[meta.method] or 0) + 1
+				end
 			end
 		end
 		local avg_index = stats.count_index > 0 and (stats.total_index_time_ns / stats.count_index) or 0
@@ -328,6 +332,8 @@ function M.setup(opts)
 			string.format("console lines indexed=%d", console_lines),
 			string.format("network lines indexed=%d", network_lines),
 			string.format("total tokens=%d", token_count),
+			string.format("methods tracked=%d", idx and (idx.method_map and vim.tbl_count(idx.method_map) or 0) or 0),
+			string.format("console_lines array size=%d", idx and (idx.console_lines and #idx.console_lines or 0) or 0),
 			string.format("avg index candidate time=%.3fms", avg_index / 1e6),
 			string.format("avg scan candidate time=%.3fms", avg_scan / 1e6),
 			string.format("index calls=%d scan calls=%d", stats.count_index, stats.count_scan),
@@ -338,6 +344,21 @@ function M.setup(opts)
 				state.map_stats.pending
 			),
 		}
+		if next(method_kind_counts) ~= nil then
+			local top_methods = {}
+			for m, c in pairs(method_kind_counts) do
+				top_methods[#top_methods + 1] = { m = m, c = c }
+			end
+			table.sort(top_methods, function(a, b)
+				return a.c > b.c
+			end)
+			local display = {}
+			for i = 1, math.min(6, #top_methods) do
+				local it = top_methods[i]
+				display[#display + 1] = string.format("%s=%d", it.m, it.c)
+			end
+			summary[#summary + 1] = "method frequencies: " .. table.concat(display, ", ")
+		end
 		if state.opts.use_treesitter then
 			local ok_ts, ts_mod = pcall(require, "console_inline.treesitter")
 			if ok_ts and ts_mod and ts_mod.cache then
