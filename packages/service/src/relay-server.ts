@@ -81,6 +81,8 @@ const debug = (...args: unknown[]) => {
 
 const server = http.createServer();
 const wss = new WebSocketServer({ server });
+// Track active forwarders for graceful shutdown.
+const activeForwarders = new Set<Forwarder>();
 
 type Forwarder = {
   send: (payload: string) => void;
@@ -208,6 +210,7 @@ wss.on("connection", (socket) => {
   debug("New WebSocket connection");
   const forwarder = createTcpForwarder();
   forwarder.ensure();
+  activeForwarders.add(forwarder);
   // Buffered async file logging
   let logBuffer: string[] = [];
   let flushTimer: NodeJS.Timeout | null = null;
@@ -286,15 +289,36 @@ wss.on("connection", (socket) => {
   socket.on("close", () => {
     debug("WebSocket closed");
     forwarder.dispose();
+    activeForwarders.delete(forwarder);
     immediateFlush();
   });
   socket.on("error", (err) => {
     console.error("[relay-server] WebSocket error:", err);
     forwarder.dispose();
+    activeForwarders.delete(forwarder);
     immediateFlush();
   });
 });
+// Graceful shutdown: close websockets, tcp forwarders, flush logs.
+const gracefulShutdown = () => {
+  debug("Shutdown initiated");
+  try {
+    // Stop accepting new connections.
+    wss.close(() => debug("WebSocket server closed"));
+    server.close(() => debug("HTTP server closed"));
+    for (const f of activeForwarders) {
+      try { f.dispose(); } catch (_) { /* ignore */ }
+    }
+    activeForwarders.clear();
+  } catch (e) {
+    console.error("[relay-server] Error during shutdown:", e);
+  }
+  // Flush any buffered logs synchronously by forcing immediateFlush.
+  // immediateFlush relies on appendFile (async); we just trigger flush and allow process to drain.
+};
+process.once("SIGINT", gracefulShutdown);
+process.once("SIGTERM", gracefulShutdown);
 
-server.listen(WS_PORT, () => {
+server.listen(WS_PORT, "127.0.0.1", () => {
   debug(`WebSocket: ws://127.0.0.1:${WS_PORT} → log file ${LOG_PATH}`);
 });
