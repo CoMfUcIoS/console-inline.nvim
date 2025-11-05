@@ -33,6 +33,7 @@ console.log("Hello from Node!");
 console.warn({ status: "demo" });
 console.trace("Inspect call stack");
 console.info("info");
+console.error("error");
 ```
 
 ### Browser / React
