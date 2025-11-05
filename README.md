@@ -50,6 +50,8 @@ All console output will be sent to Neovim as virtual text automatically. No manu
 - Works with Node.js, browser (via WebSocket relay), and ESM/CJS projects
 - No configuration required for basic usage
 - Supports persistent logs and queued messages
+- Optional batching of emitted messages to reduce network/write overhead
+- Graceful disposal API (`dispose()`) for dynamic reloads / test environments
 - Customizable severity filtering, throttling, and output length
 - Ships `@console-inline/service` for Node and browser runtimes and auto-starts the local relay
 - Example projects for Node and browser (Vite)
@@ -409,10 +411,55 @@ Strings under `paths` are treated as file globs (`**` supported). Message entrie
 
 - `CONSOLE_INLINE_WS_RECONNECT_MS` — delay between WebSocket reconnect attempts (default `1000`).
 - `CONSOLE_INLINE_MAX_QUEUE` — max messages to buffer while the TCP server is offline (default `200`; oldest entries are dropped first).
+- `CONSOLE_INLINE_BATCH_MS` — time-based batching interval in milliseconds (default `25`). Set `0` to disable batching entirely.
+- `CONSOLE_INLINE_BATCH_MAX` — maximum messages per batch before immediate flush (default `50`). Ignored if batching disabled.
 - `CONSOLE_INLINE_DEBUG` — enable verbose logging in both the service and relay for troubleshooting.
 - `CONSOLE_INLINE_SOURCE_MAPS` — force enable/disable source map resolution irrespective of dev environment.
 - `CONSOLE_INLINE_SOURCE_MAP_PRELOAD` — enable/disable background Node source map preload queue.
 - `CONSOLE_INLINE_SOURCE_MAP_MAX_QUEUE` — maximum number of Node map paths queued for preload.
+- `CONSOLE_INLINE_LOG_FLUSH_MS` — relay server buffered log flush interval in ms (default `100`). Larger values reduce disk writes; smaller values reduce risk of losing last few messages on abrupt exit.
+- `CONSOLE_INLINE_LOG_MAX_BYTES` — approximate max size (in bytes) of the relay log file before rotation (default `1000000`, ~1MB). Rotation renames existing file to `.1`, shifting older files.
+- `CONSOLE_INLINE_LOG_MAX_FILES` — number of rotated log files to keep including the active one (default `3`).
+
+#### Queue overflow visibility
+
+When a queue reaches capacity (`CONSOLE_INLINE_MAX_QUEUE`), the oldest message is dropped. The service now emits a one-time warning on the first drop and periodic summaries every 100 drops:
+
+```
+[console-inline] TCP queue overflow – dropping messages (capacity 200). Further drops will be aggregated.
+[console-inline] TCP queue overflow ongoing – total dropped so far: 100
+```
+
+Similarly for the browser WebSocket queue and relay server queue. This prevents silent data loss while avoiding log spam.
+
+#### Batching
+
+Batching reduces the number of write/send operations when many console calls occur in tight loops. Enabled by default with conservative values (`25ms` interval, `50` max per batch). To tune:
+
+```bash
+CONSOLE_INLINE_BATCH_MS=10        # more aggressive batching window
+CONSOLE_INLINE_BATCH_MAX=100      # allow larger per-flush batches
+CONSOLE_INLINE_BATCH_MS=0         # disable batching
+```
+
+If disabled (`BATCH_MS=0` or `BATCH_MAX<1`), messages are sent immediately like previous versions.
+
+#### Relay async logging
+
+The relay switched from synchronous `appendFileSync` writes to a buffered async model. It accumulates log lines and flushes every `CONSOLE_INLINE_LOG_FLUSH_MS` ms or when the buffer hits 100 messages, minimizing event loop blocking under high throughput. When the active log would exceed `CONSOLE_INLINE_LOG_MAX_BYTES`, rotation occurs (`console-inline.log` → `console-inline.log.1`, previous `.1` → `.2`, etc. up to `CONSOLE_INLINE_LOG_MAX_FILES - 1`).
+
+#### Disposal API
+
+You can manually shut down the service when doing hot module reloads or controlled tests:
+
+```js
+import { dispose } from '@console-inline/service';
+
+// ... run tests / capture output ...
+dispose(); // restores original console methods, closes sockets & timers, flushes batched messages
+```
+
+`dispose()` is idempotent; extra calls are ignored.
 
 ## Advanced Usage
 

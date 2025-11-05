@@ -55,9 +55,31 @@ const MAX_QUEUE = (() => {
   }
   return 200;
 })();
+// Batching configuration (optional performance optimization)
+const BATCH_INTERVAL_MS = (() => {
+  if (typeof process !== "undefined" && process.env?.CONSOLE_INLINE_BATCH_MS) {
+    const parsed = Number(process.env.CONSOLE_INLINE_BATCH_MS);
+    if (!Number.isNaN(parsed) && parsed >= 0) {
+      return parsed; // 0 disables batching
+    }
+  }
+  return 25; // default recommended
+})();
+const BATCH_MAX = (() => {
+  if (typeof process !== "undefined" && process.env?.CONSOLE_INLINE_BATCH_MAX) {
+    const parsed = Number(process.env.CONSOLE_INLINE_BATCH_MAX);
+    if (!Number.isNaN(parsed) && parsed >= 1) {
+      return parsed;
+    }
+  }
+  return 50; // default recommended max messages per batch before immediate flush
+})();
+const batchEnabled = BATCH_INTERVAL_MS > 0 && BATCH_MAX > 0;
 let relay: any = null;
 const originalError = console.error.bind(console);
 const originalDebug = console.log.bind(console);
+// Store originals of patched console methods so we can restore on dispose
+const __originalConsoleMethods: Record<string, Function> = {};
 
 const isTruthy = (value: unknown): boolean | undefined => {
   if (value === undefined || value === null) {
@@ -854,6 +876,11 @@ let tcpConnecting = false;
 let tcpRetryTimer: ReturnType<typeof setTimeout> | null = null;
 const tcpQueue: string[] = [];
 const browserQueue: string[] = [];
+let tcpDrops = 0;
+let browserDrops = 0;
+// Batching state
+let batchBuffer: string[] = [];
+let batchTimer: ReturnType<typeof setTimeout> | null = null;
 
 const clearReconnectTimer = () => {
   if (reconnectTimer) {
@@ -898,6 +925,20 @@ const scheduleTcpReconnect = () => {
 const enqueueTcp = (payload: string) => {
   if (MAX_QUEUE > 0 && tcpQueue.length >= MAX_QUEUE) {
     tcpQueue.shift();
+    tcpDrops++;
+    if (tcpDrops === 1) {
+      try {
+        console.warn(
+          `[console-inline] TCP queue overflow – dropping messages (capacity ${MAX_QUEUE}). Further drops will be aggregated.`,
+        );
+      } catch (_err) {/* ignore */}
+    } else if (tcpDrops % 100 === 0) {
+      try {
+        console.warn(
+          `[console-inline] TCP queue overflow ongoing – total dropped so far: ${tcpDrops}`,
+        );
+      } catch (_err) {/* ignore */}
+    }
   }
   tcpQueue.push(payload);
 };
@@ -925,47 +966,42 @@ const flushBrowserQueue = (ws: any) => {
   }
 };
 
-function connectTcp() {
-  if (!isNode) {
-    return;
-  }
-  if (tcpConnecting || (tcpClient && !tcpClient.destroyed)) {
-    return;
-  }
+async function connectTcp() {
+  if (!isNode) return;
+  if (tcpConnecting || (tcpClient && !tcpClient.destroyed)) return;
   tcpConnecting = true;
-  if (!netModulePromise) {
-    netModulePromise = import("node:net");
-  }
-  netModulePromise
-    .then((net) => {
-      const socket = net.createConnection({ host: TCP_HOST, port: TCP_PORT });
-      socket.setKeepAlive(true);
-      socket.on("connect", () => {
-        debug("TCP connected");
-        tcpConnecting = false;
-        tcpClient = socket;
-        clearTcpRetry();
-        flushTcpQueue(socket);
-      });
-      const handleFailure = (reason?: unknown) => {
-        if (debugEnabled && reason) {
-          debug("TCP connection issue", reason);
-        }
-        if (tcpClient === socket) {
-          tcpClient = null;
-        }
-        socket.destroy();
-        tcpConnecting = false;
-        scheduleTcpReconnect();
-      };
-      socket.on("error", handleFailure);
-      socket.on("close", handleFailure);
-    })
-    .catch((err) => {
-      debug("Failed to load node:net", err);
+  try {
+    if (!netModulePromise) {
+      netModulePromise = import("node:net");
+    }
+    const net = await netModulePromise;
+    const socket = net.createConnection({ host: TCP_HOST, port: TCP_PORT });
+    socket.setKeepAlive(true);
+    socket.on("connect", () => {
+      debug("TCP connected");
+      tcpConnecting = false;
+      tcpClient = socket;
+      clearTcpRetry();
+      flushTcpQueue(socket);
+    });
+    const handleFailure = (reason?: unknown) => {
+      if (debugEnabled && reason) {
+        debug("TCP connection issue", reason);
+      }
+      if (tcpClient === socket) {
+        tcpClient = null;
+      }
+      try { socket.destroy(); } catch (_err) {/* ignore */}
       tcpConnecting = false;
       scheduleTcpReconnect();
-    });
+    };
+    socket.on("error", handleFailure);
+    socket.on("close", handleFailure);
+  } catch (err) {
+    debug("Failed to load node:net", err);
+    tcpConnecting = false;
+    scheduleTcpReconnect();
+  }
 }
 
 function connectRelay() {
@@ -1052,7 +1088,7 @@ function connectRelay() {
   }
 }
 
-function sendToRelay(msg: string) {
+function dispatchMessage(msg: string) {
   if (isBrowser) {
     if (relay && isOpen(relay)) {
       try {
@@ -1064,13 +1100,26 @@ function sendToRelay(msg: string) {
     }
     if (MAX_QUEUE > 0 && browserQueue.length >= MAX_QUEUE) {
       browserQueue.shift();
+      browserDrops++;
+      if (browserDrops === 1) {
+        try {
+          console.warn(
+            `[console-inline] Browser queue overflow – dropping messages (capacity ${MAX_QUEUE}). Further drops will be aggregated.`,
+          );
+        } catch (_err) {/* ignore */}
+      } else if (browserDrops % 100 === 0) {
+        try {
+          console.warn(
+            `[console-inline] Browser queue overflow ongoing – total dropped so far: ${browserDrops}`,
+          );
+        } catch (_err) {/* ignore */}
+      }
     }
     browserQueue.push(msg);
     connectRelay();
     scheduleReconnect();
     return;
   }
-
   if (isNode) {
     if (tcpClient && !tcpClient.destroyed) {
       try {
@@ -1085,6 +1134,42 @@ function sendToRelay(msg: string) {
     enqueueTcp(msg);
     connectTcp();
     return;
+  }
+}
+
+function flushBatch() {
+  if (!batchEnabled) return;
+  if (batchTimer) {
+    clearTimeout(batchTimer);
+    batchTimer = null;
+  }
+  if (batchBuffer.length === 0) return;
+  const toSend = batchBuffer;
+  batchBuffer = [];
+  for (const msg of toSend) {
+    dispatchMessage(msg);
+  }
+}
+
+function scheduleBatchFlush() {
+  if (!batchEnabled) return;
+  if (batchTimer) return;
+  batchTimer = setTimeout(() => {
+    batchTimer = null;
+    flushBatch();
+  }, BATCH_INTERVAL_MS);
+}
+
+function sendToRelay(msg: string) {
+  if (!batchEnabled) {
+    dispatchMessage(msg);
+    return;
+  }
+  batchBuffer.push(msg);
+  if (batchBuffer.length >= BATCH_MAX) {
+    flushBatch();
+  } else {
+    scheduleBatchFlush();
   }
 }
 
@@ -1758,6 +1843,9 @@ function patchConsole() {
     "timeLog",
   ].forEach((method) => {
     const orig = console[method as keyof typeof console];
+    if (!__originalConsoleMethods[method]) {
+      __originalConsoleMethods[method] = orig as Function;
+    }
     (console[method as keyof typeof console] as (...args: any[]) => void) = (
       ...args: any[]
     ) => {
@@ -1861,6 +1949,44 @@ function patchConsole() {
   });
 }
 
+let disposed = false;
+function dispose() {
+  if (disposed) return; // idempotent
+  disposed = true;
+  try {
+    // Clear timers
+    clearReconnectTimer();
+    clearTcpRetry();
+    if (reconnectTimer) reconnectTimer = null;
+    if (tcpRetryTimer) tcpRetryTimer = null;
+    flushBatch(); // ensure pending batched messages are sent
+    if (batchTimer) {
+      clearTimeout(batchTimer);
+      batchTimer = null;
+    }
+    // Close relay websocket
+    if (relay) {
+      try {
+        if (isOpen(relay) || isConnecting(relay)) {
+          relay.close?.();
+        }
+      } catch (_err) {/* ignore */}
+    }
+    relay = null;
+    // Close TCP client
+    if (tcpClient) {
+      try { tcpClient.destroy?.(); } catch (_err) {/* ignore */}
+      tcpClient = null;
+    }
+    // Restore console methods
+    Object.keys(__originalConsoleMethods).forEach((method) => {
+      (console as any)[method] = __originalConsoleMethods[method];
+    });
+  } catch (_err) {
+    // swallow
+  }
+}
+
 if (devEnvironment) {
   if (isBrowser) {
     originalDebug(
@@ -1901,7 +2027,7 @@ if (devEnvironment) {
 }
 
 // Optionally export API
-export {};
+export { dispose };
 
 export const __testing__ = {
   isTruthy,
@@ -1920,4 +2046,5 @@ export const __testing__ = {
   determineNetworkKind,
   buildNetworkPayload,
   captureCallSite,
+  dispose,
 };

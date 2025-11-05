@@ -21,11 +21,27 @@
 import http from "http";
 import net from "net";
 import { WebSocketServer } from "ws";
+import fs from "fs";
 
 const WS_PORT = Number(process.env.CONSOLE_INLINE_WS_PORT || 36124);
 const TCP_HOST = process.env.CONSOLE_INLINE_HOST || "127.0.0.1";
 const TCP_PORT = Number(process.env.CONSOLE_INLINE_PORT || 36123);
 const LOG_PATH = process.env.CONSOLE_INLINE_LOG_PATH || "console-inline.log";
+const LOG_FLUSH_MS = (() => {
+  const raw = Number(process.env.CONSOLE_INLINE_LOG_FLUSH_MS || 100);
+  if (Number.isNaN(raw) || raw < 0) return 100;
+  return raw;
+})();
+const LOG_MAX_BYTES = (() => {
+  const raw = Number(process.env.CONSOLE_INLINE_LOG_MAX_BYTES || 1_000_000); // ~1MB default
+  if (Number.isNaN(raw) || raw < 1024) return 1_000_000;
+  return raw;
+})();
+const LOG_MAX_FILES = (() => {
+  const raw = Number(process.env.CONSOLE_INLINE_LOG_MAX_FILES || 3); // current + 2 rotated
+  if (Number.isNaN(raw) || raw < 1) return 3;
+  return raw;
+})();
 const RECONNECT_DELAY = Number(process.env.CONSOLE_INLINE_RECONNECT_MS || 1000);
 const MAX_QUEUE_SIZE = (() => {
   const raw = Number(process.env.CONSOLE_INLINE_MAX_QUEUE || 200);
@@ -77,6 +93,7 @@ const createTcpForwarder = (): Forwarder => {
   let connecting = false;
   let retryTimer: NodeJS.Timeout | null = null;
   const queue: string[] = [];
+  let drops = 0;
 
   const clearRetry = () => {
     if (retryTimer) {
@@ -147,7 +164,16 @@ const createTcpForwarder = (): Forwarder => {
   const enqueue = (payload: string) => {
     if (MAX_QUEUE_SIZE > 0 && queue.length >= MAX_QUEUE_SIZE) {
       queue.shift();
-      debug("Dropping oldest message: queue at capacity");
+      drops++;
+      if (drops === 1) {
+        console.warn(
+          `[relay-server] queue overflow – dropping messages (capacity ${MAX_QUEUE_SIZE}). Further drops will be aggregated.`,
+        );
+      } else if (drops % 100 === 0) {
+        console.warn(
+          `[relay-server] queue overflow ongoing – total dropped so far: ${drops}`,
+        );
+      }
     }
     queue.push(payload);
   };
@@ -182,6 +208,61 @@ wss.on("connection", (socket) => {
   debug("New WebSocket connection");
   const forwarder = createTcpForwarder();
   forwarder.ensure();
+  // Buffered async file logging
+  let logBuffer: string[] = [];
+  let flushTimer: NodeJS.Timeout | null = null;
+  let pendingWrite = false;
+  const rotateIfNeeded = (incomingBytes: number) => {
+    try {
+      let currentSize = 0;
+      try {
+        const stat = fs.statSync(LOG_PATH);
+        currentSize = stat.size;
+      } catch (_e) {
+        return; // no file yet
+      }
+      if (currentSize + incomingBytes < LOG_MAX_BYTES) return;
+      // Perform rotation: shift older files up
+      for (let i = LOG_MAX_FILES - 1; i >= 1; i--) {
+        const prev = i === 1 ? LOG_PATH : `${LOG_PATH}.${i - 1}`;
+        const next = `${LOG_PATH}.${i}`;
+        if (fs.existsSync(prev)) {
+          try { fs.renameSync(prev, next); } catch (_err) {/* ignore */}
+        }
+      }
+      // After rotation, new writes start fresh
+    } catch (_err) {
+      // ignore rotation errors
+    }
+  };
+  const flushLogs = () => {
+    if (pendingWrite) return; // avoid overlapping writes
+    if (logBuffer.length === 0) return;
+    const batch = logBuffer.join("");
+    logBuffer = [];
+    pendingWrite = true;
+    rotateIfNeeded(Buffer.byteLength(batch));
+    fs.appendFile(LOG_PATH, batch, (err) => {
+      pendingWrite = false;
+      if (err) {
+        console.error("[relay-server] Failed async log append:", err);
+      }
+    });
+  };
+  const scheduleFlush = () => {
+    if (flushTimer) return;
+    flushTimer = setTimeout(() => {
+      flushTimer = null;
+      flushLogs();
+    }, LOG_FLUSH_MS);
+  };
+  const immediateFlush = () => {
+    if (flushTimer) {
+      clearTimeout(flushTimer);
+      flushTimer = null;
+    }
+    flushLogs();
+  };
   socket.on("message", (data) => {
     let str = String(data);
     debug("Received message:", str);
@@ -191,12 +272,12 @@ wss.on("connection", (socket) => {
       // Forward to TCP
       forwarder.send(str);
       debug("Forwarded to TCP:", str);
-      // Persist log to file
-      try {
-        require("fs").appendFileSync(LOG_PATH, str + "\n");
-        debug("Appended to log file:", str);
-      } catch (err) {
-        console.error("[relay-server] Failed to append to log file:", err);
+      // Buffer log for async flush
+      logBuffer.push(str + "\n");
+      if (logBuffer.length >= 100) {
+        immediateFlush();
+      } else {
+        scheduleFlush();
       }
     } catch (e) {
       debug("Ignored non-JSON message:", str);
@@ -205,10 +286,12 @@ wss.on("connection", (socket) => {
   socket.on("close", () => {
     debug("WebSocket closed");
     forwarder.dispose();
+    immediateFlush();
   });
   socket.on("error", (err) => {
     console.error("[relay-server] WebSocket error:", err);
     forwarder.dispose();
+    immediateFlush();
   });
 });
 
