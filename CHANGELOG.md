@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.0.0](https://github.com/CoMfUcIoS/console-inline.nvim/compare/console-inline.nvim-v2.1.0...console-inline.nvim-v3.0.0) (2025-11-05)
+
+
+### ⚠ BREAKING CHANGES
+
+* **index:** requires @console-inline/service v1.7.0 and updates index structure; see README for new options.
+
+### Features
+
+* add batching, disposal API, and async relay logging ([7d2ba76](https://github.com/CoMfUcIoS/console-inline.nvim/commit/7d2ba76b643411ed011fdb9e76c5bc78e4ab8d05))
+* **docs:** add console.error example to README ([60ef632](https://github.com/CoMfUcIoS/console-inline.nvim/commit/60ef632acb0ed120736f15e77576e6a0ea2a7115))
+* **index:** add incremental index build for large buffers ([77d9246](https://github.com/CoMfUcIoS/console-inline.nvim/commit/77d924663599a0e09369f76fd6ae60f9ac98081f))
+* **index:** add line/method limits & index stats ([7e8a432](https://github.com/CoMfUcIoS/console-inline.nvim/commit/7e8a4323158b36d909873df3360c1a050ae053c5))
+* **perf:** add incremental index & partial TS rebuilds ([66863d7](https://github.com/CoMfUcIoS/console-inline.nvim/commit/66863d7db5b481daf103d24a56a7eaeae8775412))
+* **server:** add graceful shutdown for relay-server ([c1a0c71](https://github.com/CoMfUcIoS/console-inline.nvim/commit/c1a0c719e8a03ec0ec83b020a4f9c134cee6f511))
+* **server:** add graceful shutdown for relay-server ([df6a261](https://github.com/CoMfUcIoS/console-inline.nvim/commit/df6a261c63214dae594a3857f3c850d6bc7ae5d3))
+* **treesitter:** add range rebuild tracking and stats ([1031995](https://github.com/CoMfUcIoS/console-inline.nvim/commit/1031995eb2c62954598260657dd74881a02c47b3))
+
 ## [2.1.0](https://github.com/CoMfUcIoS/console-inline.nvim/compare/console-inline.nvim-v2.0.0...console-inline.nvim-v2.1.0) (2025-11-03)
 
 
