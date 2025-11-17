@@ -536,4 +536,4 @@ See [CHANGELOG.md](CHANGELOG.md) for release history.
 
 ## Support
 
-If console-inline.nvim saves you time, consider supporting development: [Buy Me a Coffee](https://buymeacoffee.com/comfucios).
+If console-inline.nvim saves you time, consider [sponsoring me on GitHub](https://github.com/sponsors/comfucios) or [buy me a coffee](https://www.buymeacoffee.com/comfucios).
