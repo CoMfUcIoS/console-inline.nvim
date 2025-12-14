@@ -37,25 +37,28 @@ local function render_sessions()
 		return
 	end
 
+	-- Make buffer modifiable for rendering
+	vim.api.nvim_set_option_value("modifiable", true, { buf = session_buf })
+
 	session_lines = {}
 	local lines = {
-		"┌─ Console Inline Sessions ─────────────────────────────────────┐",
-		"│ <CR> switch | <Space> toggle | <Del> delete | <q> close      │",
-		"├────────────────────────────────────────────────────────────────┤",
+		"┌─ Console Inline Sessions ────────────────────────────────────────────────┐",
+		"│ <CR> switch | <Space> toggle | <Del> delete | <q> close                 │",
+		"├──────────────────────────────────────────────────────────────────────────┤",
 	}
 
 	local session_list = sessions.list()
 
 	if #session_list == 0 then
-		table.insert(lines, "│ No sessions. Create one with :ConsoleInlineSessionNew <root>    │")
+		table.insert(lines, "│ No sessions. Create one with :ConsoleInlineSessionNew <root>             │")
 	else
 		for i, session in ipairs(session_list) do
 			local formatted = sessions.format_session(session)
 			local is_current = sessions.current_session_id == session.id and "→" or " "
 			local display = string.format("│ %s [%d] %s", is_current, i, formatted)
 
-			-- Pad to width
-			while #display < 66 do
+			-- Pad to width (85 - 2 for borders = 83)
+			while #display < 84 do
 				display = display .. " "
 			end
 			display = display .. "│"
@@ -65,9 +68,12 @@ local function render_sessions()
 		end
 	end
 
-	table.insert(lines, "└────────────────────────────────────────────────────────────────┘")
+	table.insert(lines, "└──────────────────────────────────────────────────────────────────────────┘")
 
 	vim.api.nvim_buf_set_lines(session_buf, 0, -1, false, lines)
+
+	-- Make buffer non-modifiable after rendering
+	vim.api.nvim_set_option_value("modifiable", false, { buf = session_buf })
 end
 
 -- Open session manager UI
@@ -143,10 +149,10 @@ function M.open()
 	if not session_win or not vim.api.nvim_win_is_valid(session_win) then
 		session_win = vim.api.nvim_open_win(session_buf, true, {
 			relative = "editor",
-			width = 70,
+			width = 85,
 			height = 15,
 			row = math.floor((vim.o.lines - 15) / 2),
-			col = math.floor((vim.o.columns - 70) / 2),
+			col = math.floor((vim.o.columns - 85) / 2),
 			border = "rounded",
 			title = " Console Inline Sessions ",
 			title_pos = "center",
@@ -156,7 +162,6 @@ function M.open()
 	end
 
 	render_sessions()
-	vim.api.nvim_set_option_value("modifiable", false, { buf = session_buf })
 end
 
 -- Close session manager UI

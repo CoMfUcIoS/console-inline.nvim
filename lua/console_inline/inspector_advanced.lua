@@ -325,6 +325,7 @@ function M.open_advanced()
 		vim.api.nvim_buf_set_name(buf, "ConsoleInlineAdvanced")
 	end
 	vim.api.nvim_set_option_value("buftype", "nofile", { buf = buf })
+	vim.api.nvim_set_option_value("modifiable", true, { buf = buf })
 
 	local lines = {
 		"┌─ Console Inline Advanced Inspector ────────────────┐",
@@ -345,7 +346,7 @@ function M.open_advanced()
 
 	local win = vim.api.nvim_open_win(buf, true, {
 		relative = "editor",
-		width = 55,
+		width = 80,
 		height = 30,
 		row = 2,
 		col = 10,

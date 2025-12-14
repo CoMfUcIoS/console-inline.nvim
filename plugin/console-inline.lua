@@ -14,6 +14,10 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+-- Note: This file is loaded by Neovim when the plugin directory is discovered.
+-- If using lazy.nvim with a config function, that will handle setup() calls.
+-- If not using lazy.nvim or not providing a config function, fall back to empty setup.
+
 local ok, mod = pcall(require, "console_inline")
 if not ok then
 	vim.schedule(function()
@@ -22,6 +26,5 @@ if not ok then
 	return
 end
 
-if not vim.g.console_inline_lazy_setup_done then
-	mod.setup({})
-end
+-- Don't auto-setup here - let lazy.nvim's config function handle it
+-- The config function in your lazy.nvim spec will call setup() with proper opts

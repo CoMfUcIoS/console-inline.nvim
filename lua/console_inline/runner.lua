@@ -124,6 +124,16 @@ function M.run(file, runtime)
 	local file_abs = vim.fn.fnamemodify(file, ":p")
 	local cwd = vim.fn.fnamemodify(file_abs, ":h")
 
+	-- Get the current session's port if sessions are enabled
+	local port = state.opts.port
+	if state.opts.sessions_enabled then
+		local sessions = require("console_inline.sessions")
+		local current_session = sessions.current()
+		if current_session then
+			port = current_session.port
+		end
+	end
+
 	-- Build command
 	local cmd
 	if runtime == "node" then
@@ -202,11 +212,24 @@ function M.run(file, runtime)
 		end
 	end
 
-	-- Spawn process
+	-- Spawn process with CONSOLE_INLINE_PORT environment variable
+	local env = {}
+	-- Copy current environment
+	for key, val in pairs(vim.fn.environ()) do
+		env[key] = val
+	end
+	-- Override with session port
+	env["CONSOLE_INLINE_PORT"] = tostring(port)
+	vim.notify(
+		string.format("console-inline: Setting CONSOLE_INLINE_PORT=%d (sessions_enabled=%s)", port, tostring(state.opts.sessions_enabled)),
+		vim.log.levels.DEBUG
+	)
+	
 	local ok, handle = pcall(vim.system, cmd, {
 		cwd = cwd,
 		stdout = on_stdout,
 		stderr = on_stderr,
+		env = env,
 	}, on_exit)
 
 	if not ok then

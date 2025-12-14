@@ -84,7 +84,10 @@ function M.start(session_id)
 
 	start_tcp(opts, sess_state)
 	sess_state.running = true
+
+	-- Ensure relay is running (single relay for all sessions)
 	relay.ensure()
+
 	vim.notify(string.format("console-inline: listening on %s:%d", opts.host, opts.port))
 end
 

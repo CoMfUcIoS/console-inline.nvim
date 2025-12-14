@@ -140,6 +140,7 @@ end
 local M = {}
 
 function M.setup(opts)
+	vim.notify("console-inline: setup called with opts.sessions_enabled = " .. tostring((opts or {}).sessions_enabled), vim.log.levels.INFO)
 	state.opts = vim.tbl_deep_extend("force", state.opts, opts or {})
 	if state.opts.hover == false or type(state.opts.hover) ~= "table" then
 		state.opts.hover = { enabled = false }
@@ -171,27 +172,51 @@ function M.setup(opts)
 	end
 	require("console_inline.commands")()
 
+	-- Debug: check if sessions are enabled
+	vim.notify("console-inline: sessions_enabled = " .. tostring(state.opts.sessions_enabled), vim.log.levels.INFO)
+
 	-- Initialize sessions if enabled
 	if state.opts.sessions_enabled then
-		local sessions_mod = require("console_inline.sessions")
-		sessions_mod.load_persisted()
-		sessions_mod.cleanup_stale_sessions(30)
-
-		-- Auto-create session for current workspace if none exists
-		local current_root = vim.fn.getcwd()
-		if not sessions_mod.get_by_root(current_root) then
-			local session_id = sessions_mod.create(current_root)
-			if session_id then
-				sessions_mod.switch(session_id)
-				sessions_mod.persist()
-			end
+		vim.notify("console-inline: initializing sessions...", vim.log.levels.INFO)
+		local ok, sessions_mod = pcall(require, "console_inline.sessions")
+		if not ok then
+			vim.notify("console-inline: failed to load sessions module: " .. tostring(sessions_mod), vim.log.levels.ERROR)
 		else
-			-- Switch to existing session for this root
-			local sess = sessions_mod.get_by_root(current_root)
-			if sess then
-				sessions_mod.switch(sess.id)
+			vim.notify("console-inline: sessions module loaded successfully", vim.log.levels.INFO)
+			local ok_load, err_load = pcall(sessions_mod.load_persisted)
+			if not ok_load then
+				vim.notify("console-inline: failed to load persisted sessions: " .. tostring(err_load), vim.log.levels.ERROR)
+			else
+				vim.notify("console-inline: persisted sessions loaded", vim.log.levels.INFO)
+			end
+			
+			sessions_mod.cleanup_stale_sessions(30)
+
+			-- Auto-create session for current workspace if none exists
+			local current_root = vim.fn.getcwd()
+			vim.notify("console-inline: initializing sessions for root: " .. current_root, vim.log.levels.INFO)
+			
+			if not sessions_mod.get_by_root(current_root) then
+				vim.notify("console-inline: no session found for root, creating new one", vim.log.levels.INFO)
+				local session_id, err = sessions_mod.create(current_root)
+				if session_id then
+					sessions_mod.switch(session_id)
+					sessions_mod.persist()
+					vim.notify("console-inline: Created session " .. session_id, vim.log.levels.INFO)
+				else
+					vim.notify("console-inline: failed to create session: " .. tostring(err), vim.log.levels.ERROR)
+				end
+			else
+				-- Switch to existing session for this root
+				local sess = sessions_mod.get_by_root(current_root)
+				if sess then
+					sessions_mod.switch(sess.id)
+					vim.notify("console-inline: Switched to session " .. sess.id, vim.log.levels.INFO)
+				end
 			end
 		end
+	else
+		vim.notify("console-inline: sessions disabled", vim.log.levels.INFO)
 	end
 
 	-- Optional Tree-sitter integration (opt-in)
@@ -208,12 +233,35 @@ function M.setup(opts)
 	end
 
 	if state.opts.autostart ~= false then
-		vim.api.nvim_create_autocmd("VimEnter", {
-			once = true,
-			callback = function()
+		-- If using lazy.nvim with event = "VimEnter", start immediately instead of registering autocmd
+		-- because VimEnter will have already fired by the time setup() is called
+		local ok, sessions_mod = pcall(require, "console_inline.sessions")
+		if state.opts.sessions_enabled and ok then
+			local current = sessions_mod.current()
+			if current then
+				server.start(current.id)
+			else
 				server.start()
-			end,
-		})
+			end
+		else
+			vim.api.nvim_create_autocmd("VimEnter", {
+				once = true,
+				callback = function()
+					-- Start with current session if sessions are enabled
+					if state.opts.sessions_enabled then
+						local sessions_mod2 = require("console_inline.sessions")
+						local current = sessions_mod2.current()
+						if current then
+							server.start(current.id)
+						else
+							server.start()
+						end
+					else
+						server.start()
+					end
+				end,
+			})
+		end
 	end
 
 	-- On buffer read, optionally replay persisted logs and flush queued messages
