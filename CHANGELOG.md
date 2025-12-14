@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.1.0](https://github.com/CoMfUcIoS/console-inline.nvim/compare/console-inline.nvim-v3.0.0...console-inline.nvim-v3.1.0) (2025-12-14)
+
+
+### Features
+
+* expand features, config, and docs for inline output ([07386d7](https://github.com/CoMfUcIoS/console-inline.nvim/commit/07386d717b04c389e7d5edd29fb5de31092bfe4b))
+* **format:** sanitize inline output for readability ([0157f30](https://github.com/CoMfUcIoS/console-inline.nvim/commit/0157f30599d85aec9a277ec3ecd7717517f49e85))
+* **format:** support printf-style formatting in args ([4c39812](https://github.com/CoMfUcIoS/console-inline.nvim/commit/4c39812536a07d2eee39688275cf037884618a3c))
+
+
+### Bug Fixes
+
+* **format:** add compatibility for unpack function ([ff8dba6](https://github.com/CoMfUcIoS/console-inline.nvim/commit/ff8dba6126f5c00f6a2d2d9de6591bfc1c9960b9))
+* **format:** remove redundant number to string conversion ([5a5ddf2](https://github.com/CoMfUcIoS/console-inline.nvim/commit/5a5ddf21397ae87824ed8bd32679e97d9c7cf267))
+
+
+### Documentation
+
+* **readme:** rewrite and simplify for clarity ([efae008](https://github.com/CoMfUcIoS/console-inline.nvim/commit/efae00810830820f33c9c8be24e4ca9b4f33842a))
+
 ## [3.0.0](https://github.com/CoMfUcIoS/console-inline.nvim/compare/console-inline.nvim-v2.1.0...console-inline.nvim-v3.0.0) (2025-11-05)
 
 
