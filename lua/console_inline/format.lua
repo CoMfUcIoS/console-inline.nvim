@@ -56,6 +56,25 @@ local function detect_special_type(value_str)
 	return nil
 end
 
+local function try_json(value)
+	if type(value) ~= "string" then
+		return nil
+	end
+	local trimmed = value:match("^%s*(.-)%s*$") or value
+	if not trimmed:match("^%s*[%[{]") then
+		return nil
+	end
+	local ok, decoded = pcall(vim.json.decode, value)
+	if not ok then
+		return nil
+	end
+	local ok_inspect, formatted = pcall(vim.inspect, decoded)
+	if ok_inspect then
+		return formatted
+	end
+	return nil
+end
+
 -- Format a value with type information (for type-aware highlighting)
 local function format_value_with_type(value)
 	local t = type(value)
@@ -81,25 +100,6 @@ local function format_value_with_type(value)
 		return formatted, get_type_highlight(value)
 	end
 	return tostring(value), nil
-end
-
-local function try_json(value)
-	if type(value) ~= "string" then
-		return nil
-	end
-	local trimmed = value:match("^%s*(.-)%s*$") or value
-	if not trimmed:match("^%s*[%[{]") then
-		return nil
-	end
-	local ok, decoded = pcall(vim.json.decode, value)
-	if not ok then
-		return nil
-	end
-	local ok_inspect, formatted = pcall(vim.inspect, decoded)
-	if ok_inspect then
-		return formatted
-	end
-	return nil
 end
 
 local function format_value(value)
@@ -201,16 +201,16 @@ function M.inline_typed(entry)
 	if not entry then
 		return { { text = "", hl = nil } }
 	end
-	
+
 	local state_ok, state = pcall(require, "console_inline.state")
 	if not state_ok or state.opts.type_highlighting == false then
 		-- Fallback to single-color output
 		return { { text = entry.text or "", hl = entry.highlight or "NonText" } }
 	end
-	
+
 	local args = entry.raw_args or {}
 	local segments = {}
-	
+
 	if #args == 0 then
 		local payload = entry.payload or entry.text or ""
 		local fmt, hl = format_value_with_type(payload)
@@ -225,7 +225,7 @@ function M.inline_typed(entry)
 			segments[#segments + 1] = { text = formatted, hl = hl }
 		end
 	end
-	
+
 	return #segments > 0 and segments or { { text = entry.text or "", hl = nil } }
 end
 

@@ -20,7 +20,7 @@ local M = {}
 -- Detect runtime from file or environment
 local function detect_runtime(file)
 	local cwd = vim.fn.fnamemodify(file, ":p:h")
-	
+
 	-- Check for deno.json in parent directories
 	local current = cwd
 	for _ = 1, 10 do
@@ -35,7 +35,7 @@ local function detect_runtime(file)
 			break
 		end
 	end
-	
+
 	-- Check for bun.lockb
 	current = cwd
 	for _ = 1, 10 do
@@ -47,7 +47,7 @@ local function detect_runtime(file)
 			break
 		end
 	end
-	
+
 	-- Check for package.json to determine package manager
 	current = cwd
 	for _ = 1, 10 do
@@ -71,7 +71,7 @@ local function detect_runtime(file)
 			break
 		end
 	end
-	
+
 	return "node"
 end
 
@@ -84,7 +84,7 @@ local function get_shim_path(runtime)
 	end
 	local dir = vim.fn.fnamemodify(source, ":p:h")
 	local root = vim.fn.fnamemodify(dir .. "/../..", ":p")
-	
+
 	if runtime == "deno" then
 		return vim.fn.fnamemodify(root .. "/shim/deno/console-inline-shim.ts", ":p")
 	elseif runtime == "bun" then
@@ -99,31 +99,31 @@ function M.run(file, runtime)
 	if not file or file == "" then
 		return false, "No file specified"
 	end
-	
+
 	-- Check if file exists
 	if vim.fn.filereadable(file) == 0 then
 		return false, "File not readable: " .. file
 	end
-	
+
 	-- Auto-detect runtime if not specified
 	if not runtime or runtime == "" then
 		runtime = detect_runtime(file)
 	end
-	
+
 	-- Validate runtime
 	if not vim.tbl_contains({ "node", "deno", "bun" }, runtime) then
 		return false, "Unknown runtime: " .. runtime .. " (expected: node, deno, bun)"
 	end
-	
+
 	-- Check if runtime is available
 	local exe = runtime == "node" and "node" or runtime
 	if vim.fn.executable(exe) == 0 then
 		return false, "Runtime not found: " .. exe .. " (install it or add to PATH)"
 	end
-	
+
 	local file_abs = vim.fn.fnamemodify(file, ":p")
 	local cwd = vim.fn.fnamemodify(file_abs, ":h")
-	
+
 	-- Build command
 	local cmd
 	if runtime == "node" then
@@ -137,7 +137,7 @@ function M.run(file, runtime)
 	elseif runtime == "bun" then
 		cmd = { "bun", "run", file_abs }
 	end
-	
+
 	-- Check if buffer is modified
 	if vim.bo.modified then
 		local choice = vim.fn.confirm("Buffer has unsaved changes. Save before running?", "&Yes\n&No\n&Cancel")
@@ -147,13 +147,11 @@ function M.run(file, runtime)
 			return false, "Execution cancelled"
 		end
 	end
-	
+
 	-- Execute asynchronously with proper error handling
 	local output_lines = {}
 	local error_lines = {}
-	local completed = false
-	local exit_code = nil
-	
+
 	local function on_stdout(_, data)
 		if data and type(data) == "string" then
 			for line in data:gmatch("[^\r\n]+") do
@@ -163,7 +161,7 @@ function M.run(file, runtime)
 			end
 		end
 	end
-	
+
 	local function on_stderr(_, data)
 		if data and type(data) == "string" then
 			for line in data:gmatch("[^\r\n]+") do
@@ -173,14 +171,11 @@ function M.run(file, runtime)
 			end
 		end
 	end
-	
+
 	local function on_exit(_, code)
-		exit_code = code
-		completed = true
-		
 		local runner_opts = state.opts.runner or {}
 		local show_output = runner_opts.show_output ~= false
-		
+
 		-- Show output in split buffer
 		if show_output and (#output_lines > 0 or #error_lines > 0) then
 			local all_lines = vim.list_extend(output_lines, error_lines)
@@ -192,7 +187,7 @@ function M.run(file, runtime)
 			vim.cmd("split")
 			vim.api.nvim_set_current_buf(buf)
 		end
-		
+
 		if code == 0 then
 			vim.notify(
 				string.format("console-inline: %s execution completed successfully", runtime),
@@ -206,23 +201,23 @@ function M.run(file, runtime)
 			)
 		end
 	end
-	
+
 	-- Spawn process
 	local ok, handle = pcall(vim.system, cmd, {
 		cwd = cwd,
 		stdout = on_stdout,
 		stderr = on_stderr,
 	}, on_exit)
-	
+
 	if not ok then
 		return false, "Failed to spawn process: " .. tostring(handle)
 	end
-	
+
 	vim.notify(
 		string.format("console-inline: Running %s with %s...", vim.fn.fnamemodify(file, ":t"), runtime),
 		vim.log.levels.INFO
 	)
-	
+
 	-- Note: Process runs asynchronously, callbacks will be called when complete
 	return true
 end

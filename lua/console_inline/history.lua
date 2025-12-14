@@ -58,12 +58,12 @@ function M.record_per_line(bufnr, lnum, entry)
 	local by_line = ensure_per_line_history()
 	by_line[bufnr] = by_line[bufnr] or {}
 	local line_entries = by_line[bufnr][lnum]
-	
+
 	if not line_entries then
 		line_entries = { entries = {}, current_index = 1 }
 		by_line[bufnr][lnum] = line_entries
 	end
-	
+
 	-- Add new entry and set current index to first (oldest shown first)
 	table.insert(line_entries.entries, entry)
 	line_entries.current_index = 1
@@ -90,7 +90,7 @@ function M.next_per_line(bufnr, lnum)
 	if count == 0 then
 		return nil
 	end
-	
+
 	line_entries.current_index = line_entries.current_index + 1
 	if line_entries.current_index > count then
 		line_entries.current_index = 1
@@ -109,7 +109,7 @@ function M.prev_per_line(bufnr, lnum)
 	if count == 0 then
 		return nil
 	end
-	
+
 	line_entries.current_index = line_entries.current_index - 1
 	if line_entries.current_index < 1 then
 		line_entries.current_index = count

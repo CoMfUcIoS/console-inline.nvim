@@ -156,12 +156,12 @@ function M.setup(opts)
 	if type(state.opts.popup_formatter) ~= "function" then
 		state.opts.popup_formatter = require("console_inline.format").default
 	end
-	
+
 	-- Setup highlight groups for type-aware highlighting
 	if state.opts.type_highlighting ~= false then
 		setup_highlight_groups()
 	end
-	
+
 	if vim.g.console_inline_lazy_setup_done then
 		-- allow runtime restarts when autostart enabled
 		if state.opts.autostart ~= false then

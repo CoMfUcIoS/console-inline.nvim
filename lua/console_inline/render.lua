@@ -760,11 +760,11 @@ local function set_line_text(buf, line0, entry, hl)
 	state.extmarks_by_buf_line[buf] = state.extmarks_by_buf_line[buf] or {}
 	state.last_msg_by_buf_line[buf] = state.last_msg_by_buf_line[buf] or {}
 	local id = state.extmarks_by_buf_line[buf][line0]
-	
+
 	-- Get position indicator info
 	local current_idx, total_count = history.get_position_per_line(buf, line0)
 	local has_position = current_idx and total_count and total_count > 1
-	
+
 	-- Build virt_text with type-aware highlighting if enabled
 	local virt_text = { { text, hl } }
 	if state.opts.type_highlighting ~= false then
@@ -798,7 +798,7 @@ local function set_line_text(buf, line0, entry, hl)
 			virt_text = { { text, hl } }
 		end
 	end
-	
+
 	local opts = {
 		virt_text = virt_text,
 		virt_text_pos = virt_pos(),
@@ -1177,7 +1177,7 @@ function M.render_message(msg)
 
 	-- Create entry without count prefix (for clean history cycling)
 	local base_display = icon .. " " .. display_payload
-	
+
 	local entry = {
 		text = base_display,
 		payload = full_payload,
@@ -1189,18 +1189,18 @@ function M.render_message(msg)
 		trace = msg.trace,
 		time = msg.time,
 	}
-	
+
 	-- Record in per-line history FIRST for cycling
 	history.record_per_line(buf, line0, entry)
-	
+
 	-- Now render with the entry (set_line_text will add position indicator)
 	set_line_text(buf, line0, entry, hl)
-	
+
 	-- Update history_entry for global history
 	history_entry.count = 1
 	history_entry.display = base_display
 	history_entry.text = base_display
-	
+
 	log.debug(
 		string.format("set_line_text: buf=%s line=%d text=%s hl=%s", tostring(buf), line0, base_display, hl)
 	)
