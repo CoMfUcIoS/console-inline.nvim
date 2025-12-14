@@ -760,8 +760,47 @@ local function set_line_text(buf, line0, entry, hl)
 	state.extmarks_by_buf_line[buf] = state.extmarks_by_buf_line[buf] or {}
 	state.last_msg_by_buf_line[buf] = state.last_msg_by_buf_line[buf] or {}
 	local id = state.extmarks_by_buf_line[buf][line0]
+	
+	-- Get position indicator info
+	local current_idx, total_count = history.get_position_per_line(buf, line0)
+	local has_position = current_idx and total_count and total_count > 1
+	
+	-- Build virt_text with type-aware highlighting if enabled
+	local virt_text = { { text, hl } }
+	if state.opts.type_highlighting ~= false then
+		local format_mod = require("console_inline.format")
+		local ok, segments = pcall(format_mod.inline_typed, entry)
+		if ok and type(segments) == "table" and #segments > 0 then
+			virt_text = {}
+			-- Add position indicator as first segment if needed
+			if has_position then
+				virt_text[#virt_text + 1] = { string.format("[%d/%d] ", current_idx, total_count), "Comment" }
+			end
+			-- Add type-highlighted segments
+			for _, seg in ipairs(segments) do
+				if seg.text and seg.text ~= "" then
+					virt_text[#virt_text + 1] = { seg.text, seg.hl or hl }
+				end
+			end
+		else
+			-- Fallback: single segment with position indicator in text if needed
+			if has_position then
+				virt_text = { { string.format("[%d/%d] %s", current_idx, total_count, text), hl } }
+			else
+				virt_text = { { text, hl } }
+			end
+		end
+	else
+		-- Type highlighting disabled: add position indicator to text
+		if has_position then
+			virt_text = { { string.format("[%d/%d] %s", current_idx, total_count, text), hl } }
+		else
+			virt_text = { { text, hl } }
+		end
+	end
+	
 	local opts = {
-		virt_text = { { text, hl } },
+		virt_text = virt_text,
 		virt_text_pos = virt_pos(),
 		hl_mode = "combine",
 		priority = 200,
@@ -1136,35 +1175,35 @@ function M.render_message(msg)
 	history_entry.render_line = line0 + 1
 	history_entry.buf = buf
 
-	state.last_msg_by_buf_line[buf] = state.last_msg_by_buf_line[buf] or {}
-	local prev = state.last_msg_by_buf_line[buf][line0]
-	local count = 1
-	if prev and type(prev) == "table" and prev.payload == full_payload and prev.icon == icon then
-		count = prev.count + 1
-	end
-
-	local prefix = count > 1 and (count .. "x ") or ""
-	local display = icon .. " " .. prefix .. display_payload
-	history_entry.count = count
-	history_entry.display = display
-	history_entry.text = display
-
-	log.debug(
-		string.format("set_line_text: buf=%s line=%d text=%s hl=%s count=%d", tostring(buf), line0, display, hl, count)
-	)
-
+	-- Create entry without count prefix (for clean history cycling)
+	local base_display = icon .. " " .. display_payload
+	
 	local entry = {
-		text = display,
+		text = base_display,
 		payload = full_payload,
 		icon = icon,
-		count = count,
+		count = 1,
 		raw_args = msg.args,
 		highlight = hl,
 		method = msg.method,
 		trace = msg.trace,
 		time = msg.time,
 	}
+	
+	-- Record in per-line history FIRST for cycling
+	history.record_per_line(buf, line0, entry)
+	
+	-- Now render with the entry (set_line_text will add position indicator)
 	set_line_text(buf, line0, entry, hl)
+	
+	-- Update history_entry for global history
+	history_entry.count = 1
+	history_entry.display = base_display
+	history_entry.text = base_display
+	
+	log.debug(
+		string.format("set_line_text: buf=%s line=%d text=%s hl=%s", tostring(buf), line0, base_display, hl)
+	)
 	if state.hover_popup and state.hover_popup.entry == history_entry then
 		M.refresh_hover_popup(history_entry)
 	end
@@ -1318,6 +1357,18 @@ function M.maybe_show_hover()
 	end
 	M.close_hover_popup()
 	M.show_hover_popup(entry)
+end
+
+-- Refresh the virtual text display for a specific line with a new entry
+function M.refresh_line_text(buf, lnum, entry)
+	if not (buf and lnum and entry) then
+		return
+	end
+	local hl = entry.highlight or "NonText"
+	set_line_text(buf, lnum, entry, hl)
+	if state.hover_popup and state.hover_popup.source_buf == buf then
+		M.refresh_hover_popup(entry)
+	end
 end
 
 return M

@@ -16,6 +16,73 @@
 
 local M = {}
 
+-- Detect the type of a value and return its highlight group
+local function get_type_highlight(value)
+	local t = type(value)
+	if t == "string" then
+		return "ConsoleInlineString"
+	elseif t == "number" then
+		return "ConsoleInlineNumber"
+	elseif t == "boolean" then
+		return "ConsoleInlineBoolean"
+	elseif t == "nil" then
+		return "ConsoleInlineNull"
+	elseif t == "table" then
+		if vim.tbl_islist(value) then
+			return "ConsoleInlineArray"
+		else
+			return "ConsoleInlineObject"
+		end
+	elseif t == "function" then
+		return "ConsoleInlineFunction"
+	else
+		return "ConsoleInlineSymbol"
+	end
+end
+
+-- Try to detect special types (Date, Regex) from their string representation
+local function detect_special_type(value_str)
+	if type(value_str) ~= "string" then
+		return nil
+	end
+	-- ISO 8601 date format
+	if value_str:match("^%d%d%d%d%-%-?%d%d%-%-?%d%dT") then
+		return "ConsoleInlineDate"
+	end
+	-- Regex pattern
+	if value_str:match("^/.*/$") then
+		return "ConsoleInlineRegex"
+	end
+	return nil
+end
+
+-- Format a value with type information (for type-aware highlighting)
+local function format_value_with_type(value)
+	local t = type(value)
+	if t == "string" then
+		local json_fmt = try_json(value)
+		if json_fmt then
+			return json_fmt, nil
+		end
+		return value, get_type_highlight(value)
+	end
+	if t == "number" or t == "boolean" then
+		return vim.inspect(value), get_type_highlight(value)
+	end
+	if t == "nil" then
+		return "nil", "ConsoleInlineNull"
+	end
+	local ok, formatted = pcall(vim.inspect, value)
+	if ok then
+		local special = detect_special_type(formatted)
+		if special then
+			return formatted, special
+		end
+		return formatted, get_type_highlight(value)
+	end
+	return tostring(value), nil
+end
+
 local function try_json(value)
 	if type(value) ~= "string" then
 		return nil
@@ -126,6 +193,40 @@ function M.default(entry)
 		lines = { entry.text or "" }
 	end
 	return lines
+end
+
+-- Format with type information for inline virtual text highlighting
+-- Returns array of { text = string, hl = string } tables
+function M.inline_typed(entry)
+	if not entry then
+		return { { text = "", hl = nil } }
+	end
+	
+	local state_ok, state = pcall(require, "console_inline.state")
+	if not state_ok or state.opts.type_highlighting == false then
+		-- Fallback to single-color output
+		return { { text = entry.text or "", hl = entry.highlight or "NonText" } }
+	end
+	
+	local args = entry.raw_args or {}
+	local segments = {}
+	
+	if #args == 0 then
+		local payload = entry.payload or entry.text or ""
+		local fmt, hl = format_value_with_type(payload)
+		segments[#segments + 1] = { text = fmt, hl = hl }
+	else
+		for idx, value in ipairs(args) do
+			-- Add space separator between arguments
+			if idx > 1 then
+				segments[#segments + 1] = { text = " ", hl = nil }
+			end
+			local formatted, hl = format_value_with_type(value)
+			segments[#segments + 1] = { text = formatted, hl = hl }
+		end
+	end
+	
+	return #segments > 0 and segments or { { text = entry.text or "", hl = nil } }
 end
 
 return M

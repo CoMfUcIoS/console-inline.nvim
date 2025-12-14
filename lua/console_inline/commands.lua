@@ -17,18 +17,93 @@
 local server = require("console_inline.server")
 local render = require("console_inline.render")
 local history = require("console_inline.history")
+local runner = require("console_inline.runner")
+local inspector = require("console_inline.inspector")
 
 return function()
 	local state = require("console_inline.state")
 
 	vim.api.nvim_create_user_command("ConsoleInlineStatus", function()
-		local running = state.running and "running" or "stopped"
+		local running = state.running and "✓ running" or "✗ stopped"
 		local host = state.opts.host or "127.0.0.1"
 		local port = state.opts.port or 36123
 		local sockets = state.sockets and #state.sockets or 0
-		vim.notify(
-			string.format("console-inline: TCP server is %s on %s:%d (%d active sockets)", running, host, port, sockets)
-		)
+		
+		-- Message count per buffer
+		local message_stats = {}
+		local total_messages = 0
+		local severity_count = { log = 0, info = 0, warn = 0, error = 0 }
+		for bufnr, lines_map in pairs(state.extmarks_by_buf_line) do
+			local count = 0
+			for _, extmark_id in pairs(lines_map) do
+				if type(extmark_id) == "number" then
+					count = count + 1
+				end
+			end
+			if count > 0 then
+				message_stats[bufnr] = count
+				total_messages = total_messages + count
+			end
+		end
+		
+		-- Count by severity from history
+		for _, entry in ipairs(state.history) do
+			local kind = entry.kind or "log"
+			severity_count[kind] = (severity_count[kind] or 0) + 1
+		end
+		
+		-- Source map stats
+		local map_hit = state.map_stats.hit or 0
+		local map_miss = state.map_stats.miss or 0
+		local map_pending = state.map_stats.pending or 0
+		local map_total = map_hit + map_miss + (map_pending > 0 and 1 or 0)
+		local map_rate = map_total > 0 and string.format("%.1f%%", (map_hit / map_total) * 100) or "N/A"
+		
+		-- Active filters
+		local filters = state.opts.filters
+		local filter_status = "none"
+		if type(filters) == "table" then
+			local has_allow = type(filters.allow) == "table"
+			local has_deny = type(filters.deny) == "table"
+			local has_severity = type(filters.severity) == "table" and #filters.severity > 0
+			if has_allow or has_deny or has_severity then
+				filter_status = string.format("%s%s%s",
+					has_allow and "allow " or "",
+					has_deny and "deny " or "",
+					has_severity and "severity" or ""
+				):gsub("%s+$", "")
+			end
+		end
+		
+		-- Last message timestamp
+		local last_msg_time = state.history and #state.history > 0 and state.history[#state.history].timestamp or nil
+		local time_str = "never"
+		if last_msg_time then
+			local elapsed = os.time() - (tonumber(last_msg_time) or 0)
+			if elapsed < 60 then
+				time_str = string.format("%ds ago", elapsed)
+			elseif elapsed < 3600 then
+				time_str = string.format("%dm ago", math.floor(elapsed / 60))
+			else
+				time_str = string.format("%dh ago", math.floor(elapsed / 3600))
+			end
+		end
+		
+		-- Build status message
+		local lines = {
+			string.format("━━━━━━━━━━━ Console Inline Status ━━━━━━━━━━━"),
+			string.format("Server: %s on %s:%d", running, host, port),
+			string.format("Sockets: %d active", sockets),
+			"",
+			string.format("Messages: %d total [log:%d info:%d warn:%d error:%d]",
+				total_messages, severity_count.log, severity_count.info, severity_count.warn, severity_count.error),
+			string.format("Source Maps: %d hits, %d misses (%s resolution rate)", map_hit, map_miss, map_rate),
+			string.format("Filters: %s", filter_status),
+			string.format("Last message: %s", time_str),
+			"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+		}
+		
+		vim.notify(table.concat(lines, "\n"), vim.log.levels.INFO)
 	end, {})
 	vim.api.nvim_create_user_command("ConsoleInlineToggle", function()
 		server.toggle()
@@ -170,5 +245,64 @@ return function()
 				end,
 			})
 			:find()
+	end, {})
+
+	vim.api.nvim_create_user_command("ConsoleInlineNext", function()
+		local bufnr = vim.api.nvim_get_current_buf()
+		local cursor_pos = vim.api.nvim_win_get_cursor(0)
+		local lnum = cursor_pos[1] - 1 -- Convert to 0-indexed
+		
+		local entry = history.next_per_line(bufnr, lnum)
+		if not entry then
+			vim.notify("console-inline: no message to cycle to", vim.log.levels.WARN)
+			return
+		end
+		
+		-- Re-render the line with updated entry
+		render.refresh_line_text(bufnr, lnum, entry)
+		
+		local current, total = history.get_position_per_line(bufnr, lnum)
+		if current and total then
+			vim.notify(string.format("console-inline: message [%d/%d]", current, total), vim.log.levels.INFO)
+		end
+	end, {})
+
+	vim.api.nvim_create_user_command("ConsoleInlinePrev", function()
+		local bufnr = vim.api.nvim_get_current_buf()
+		local cursor_pos = vim.api.nvim_win_get_cursor(0)
+		local lnum = cursor_pos[1] - 1 -- Convert to 0-indexed
+		
+		local entry = history.prev_per_line(bufnr, lnum)
+		if not entry then
+			vim.notify("console-inline: no message to cycle to", vim.log.levels.WARN)
+			return
+		end
+		
+		-- Re-render the line with updated entry
+		render.refresh_line_text(bufnr, lnum, entry)
+		
+		local current, total = history.get_position_per_line(bufnr, lnum)
+		if current and total then
+			vim.notify(string.format("console-inline: message [%d/%d]", current, total), vim.log.levels.INFO)
+		end
+	end, {})
+
+	vim.api.nvim_create_user_command("ConsoleInlineRun", function(opts)
+		local runtime = opts.args and opts.args ~= "" and opts.args or nil
+		local file = vim.api.nvim_buf_get_name(0)
+		
+		if file == "" or file == nil then
+			vim.notify("console-inline: no file in current buffer", vim.log.levels.WARN)
+			return
+		end
+		
+		local ok, err = runner.run(file, runtime)
+		if not ok then
+			vim.notify("console-inline: " .. err, vim.log.levels.ERROR)
+		end
+	end, { nargs = "?" })
+
+	vim.api.nvim_create_user_command("ConsoleInlineInspector", function()
+		inspector.open()
 	end, {})
 end

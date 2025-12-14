@@ -91,6 +91,52 @@ local function flush_queued_messages(fname)
 	state.queued_messages_by_file[key] = nil
 end
 
+-- Setup type-aware highlight groups for syntax highlighting
+local function setup_highlight_groups()
+	-- Define highlight groups with sensible defaults
+	-- String literals
+	if vim.fn.hlexists("ConsoleInlineString") == 0 then
+		vim.cmd("highlight default link ConsoleInlineString String")
+	end
+	-- Numbers
+	if vim.fn.hlexists("ConsoleInlineNumber") == 0 then
+		vim.cmd("highlight default link ConsoleInlineNumber Number")
+	end
+	-- Booleans
+	if vim.fn.hlexists("ConsoleInlineBoolean") == 0 then
+		vim.cmd("highlight default link ConsoleInlineBoolean Boolean")
+	end
+	-- Null/Undefined
+	if vim.fn.hlexists("ConsoleInlineNull") == 0 then
+		vim.cmd("highlight default link ConsoleInlineNull Comment")
+	end
+	if vim.fn.hlexists("ConsoleInlineUndefined") == 0 then
+		vim.cmd("highlight default link ConsoleInlineUndefined Comment")
+	end
+	-- Objects and Arrays
+	if vim.fn.hlexists("ConsoleInlineObject") == 0 then
+		vim.cmd("highlight default link ConsoleInlineObject Structure")
+	end
+	if vim.fn.hlexists("ConsoleInlineArray") == 0 then
+		vim.cmd("highlight default link ConsoleInlineArray Structure")
+	end
+	-- Functions
+	if vim.fn.hlexists("ConsoleInlineFunction") == 0 then
+		vim.cmd("highlight default link ConsoleInlineFunction Function")
+	end
+	-- Date and Regex
+	if vim.fn.hlexists("ConsoleInlineDate") == 0 then
+		vim.cmd("highlight default link ConsoleInlineDate Special")
+	end
+	if vim.fn.hlexists("ConsoleInlineRegex") == 0 then
+		vim.cmd("highlight default link ConsoleInlineRegex Special")
+	end
+	-- Symbols
+	if vim.fn.hlexists("ConsoleInlineSymbol") == 0 then
+		vim.cmd("highlight default link ConsoleInlineSymbol Identifier")
+	end
+end
+
 local M = {}
 
 function M.setup(opts)
@@ -110,6 +156,12 @@ function M.setup(opts)
 	if type(state.opts.popup_formatter) ~= "function" then
 		state.opts.popup_formatter = require("console_inline.format").default
 	end
+	
+	-- Setup highlight groups for type-aware highlighting
+	if state.opts.type_highlighting ~= false then
+		setup_highlight_groups()
+	end
+	
 	if vim.g.console_inline_lazy_setup_done then
 		-- allow runtime restarts when autostart enabled
 		if state.opts.autostart ~= false then
