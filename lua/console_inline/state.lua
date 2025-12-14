@@ -16,9 +16,13 @@
 
 local M = {
 	ns = vim.api.nvim_create_namespace("console_inline"),
+
+	-- Global server state (backwards compatibility, single-session mode)
 	server = nil,
 	sockets = {},
 	running = false,
+
+	-- Global base configuration
 	opts = {
 		host = "127.0.0.1",
 		port = 36123,
@@ -55,7 +59,13 @@ local M = {
 			row = 1,
 			col = 0,
 		},
+		sessions_enabled = false, -- enable multi-workspace sessions
 	},
+
+	-- Per-session state storage: session_id -> { server, sockets, running, ... }
+	sessions_state = {},
+
+	-- Global per-buffer state (shared across sessions)
 	extmarks_by_buf_line = {},
 	last_msg_by_buf_line = {},
 	queued_messages_by_file = {},
@@ -77,5 +87,25 @@ local M = {
 	treesitter_stats = { full_rebuilds = 0, partial_rebuilds = 0, range_rebuilds = 0 },
 	map_stats = { hit = 0, miss = 0, pending = 0 },
 }
+
+-- Helper: get state for current session (or global if sessions disabled)
+function M.get_session_state(session_id)
+	if not M.opts.sessions_enabled or not session_id then
+		return M
+	end
+	if not M.sessions_state[session_id] then
+		M.sessions_state[session_id] = {
+			server = nil,
+			sockets = {},
+			running = false,
+		}
+	end
+	return M.sessions_state[session_id]
+end
+
+-- Helper: clear session state
+function M.clear_session_state(session_id)
+	M.sessions_state[session_id] = nil
+end
 
 return M

@@ -303,4 +303,89 @@ return function()
 	vim.api.nvim_create_user_command("ConsoleInlineInspector", function()
 		inspector.open()
 	end, {})
+
+	vim.api.nvim_create_user_command("ConsoleInlineSessions", function()
+		if not state.opts.sessions_enabled then
+			vim.notify("console-inline: sessions not enabled. Set sessions_enabled = true in setup()", vim.log.levels.WARN)
+			return
+		end
+		require("console_inline.sessions_ui").open()
+	end, {})
+
+	vim.api.nvim_create_user_command("ConsoleInlineSessionNew", function(opts)
+		if not state.opts.sessions_enabled then
+			vim.notify("console-inline: sessions not enabled. Set sessions_enabled = true in setup()", vim.log.levels.WARN)
+			return
+		end
+
+		local root = opts.args and opts.args ~= "" and opts.args or vim.fn.getcwd()
+		local sessions_mod = require("console_inline.sessions")
+
+		local session_id, err = sessions_mod.create(root)
+		if not session_id then
+			vim.notify("console-inline: " .. (err or "failed to create session"), vim.log.levels.ERROR)
+			return
+		end
+
+		-- Switch to new session
+		sessions_mod.switch(session_id)
+		sessions_mod.persist()
+
+		vim.notify(string.format("Session created: %s (%s:%d)", session_id, root, sessions_mod.get(session_id).port), vim.log.levels.INFO)
+	end, { nargs = "?" })
+
+	vim.api.nvim_create_user_command("ConsoleInlineAdvanced", function()
+		local inspector_advanced = require("console_inline.inspector_advanced")
+		inspector_advanced.open_advanced()
+	end, {})
+
+	vim.api.nvim_create_user_command("ConsoleInlineExport", function(opts)
+		local inspector_advanced = require("console_inline.inspector_advanced")
+		local filename = opts.args and opts.args ~= "" and opts.args or vim.fn.expand("~") .. "/console_inline_export.json"
+		local ok, msg = inspector_advanced.export_to_json(filename)
+		vim.notify(msg, ok and vim.log.levels.INFO or vim.log.levels.ERROR)
+	end, { nargs = "?" })
+
+	vim.api.nvim_create_user_command("ConsoleInlineSessionConfig", function(opts)
+		if not state.opts.sessions_enabled then
+			vim.notify("console-inline: sessions not enabled", vim.log.levels.WARN)
+			return
+		end
+
+		local sessions_mod = require("console_inline.sessions")
+		local current = sessions_mod.current()
+		if not current then
+			vim.notify("console-inline: no active session", vim.log.levels.WARN)
+			return
+		end
+
+		-- Parse key=value pairs from args
+		local config = {}
+		for pair in opts.args:gmatch("[^ ]+") do
+			local key, val = pair:match("(.+)=(.+)")
+			if key and val then
+				-- Try to parse as number or boolean
+				if val == "true" then
+					config[key] = true
+				elseif val == "false" then
+					config[key] = false
+				elseif tonumber(val) then
+					config[key] = tonumber(val)
+				else
+					config[key] = val
+				end
+			end
+		end
+
+		if vim.tbl_count(config) == 0 then
+			-- Show current config
+			vim.notify("Current session: " .. current.id, vim.log.levels.INFO)
+			vim.notify(vim.json.encode(current.config_overrides), vim.log.levels.INFO)
+		else
+			-- Set config
+			sessions_mod.set_config(current.id, config)
+			sessions_mod.persist()
+			vim.notify("Session config updated", vim.log.levels.INFO)
+		end
+	end, { nargs = "*" })
 end

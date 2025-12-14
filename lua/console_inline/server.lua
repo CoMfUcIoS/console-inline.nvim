@@ -21,17 +21,19 @@ local relay = require("console_inline.relay")
 
 local M = {}
 
-local function start_tcp()
-	if state.server then
+-- Start TCP server for a session (or global if session_id nil)
+local function start_tcp(opts, session_state)
+	if session_state.server then
 		return
 	end
+
 	local server = uv.new_tcp()
-	server:bind(state.opts.host, state.opts.port)
+	server:bind(opts.host, opts.port)
 	server:listen(128, function(err)
 		assert(not err, err)
 		local sock = uv.new_tcp()
 		server:accept(sock)
-		table.insert(state.sockets, sock)
+		table.insert(session_state.sockets, sock)
 		local buf = ""
 		sock:read_start(function(e, chunk)
 			if e then
@@ -57,42 +59,94 @@ local function start_tcp()
 			end
 		end)
 	end)
-	state.server = server
+
+	session_state.server = server
 end
 
-function M.start()
-	if state.running then
+-- Start server (backwards compatible, single-session by default)
+function M.start(session_id)
+	local sess_state = state.get_session_state(session_id)
+
+	if sess_state.running then
 		return
 	end
-	start_tcp()
-	state.running = true
+
+	local opts = state.opts
+	if session_id and state.opts.sessions_enabled then
+		local sessions = require("console_inline.sessions")
+		local session = sessions.get(session_id)
+		if not session then
+			vim.notify("Session not found: " .. session_id)
+			return
+		end
+		opts = sessions.get_merged_config(session_id, state.opts)
+	end
+
+	start_tcp(opts, sess_state)
+	sess_state.running = true
+
+	-- Ensure relay is running (single relay for all sessions)
 	relay.ensure()
-	vim.notify(string.format("console-inline: listening on %s:%d", state.opts.host, state.opts.port))
+
+	vim.notify(string.format("console-inline: listening on %s:%d", opts.host, opts.port))
 end
 
-function M.stop()
-	if not state.running then
+-- Stop server (backwards compatible, single-session by default)
+function M.stop(session_id)
+	local sess_state = state.get_session_state(session_id)
+
+	if not sess_state.running then
 		return
 	end
-	state.running = false
-	if state.server then
-		pcall(state.server.close, state.server)
-		state.server = nil
+
+	sess_state.running = false
+	if sess_state.server then
+		pcall(sess_state.server.close, sess_state.server)
+		sess_state.server = nil
 	end
-	for _, s in ipairs(state.sockets) do
+	for _, s in ipairs(sess_state.sockets) do
 		pcall(s.close, s)
 	end
-	state.sockets = {}
-	relay.stop()
+	sess_state.sockets = {}
+
+	-- Only stop relay if no other sessions are running
+	if state.opts.sessions_enabled then
+		local sessions = require("console_inline.sessions")
+		local any_running = false
+		for _, session in pairs(sessions.sessions) do
+			local s = state.sessions_state[session.id]
+			if s and s.running then
+				any_running = true
+				break
+			end
+		end
+		if not any_running then
+			relay.stop()
+		end
+	else
+		relay.stop()
+	end
+
 	vim.notify("console-inline: stopped")
 end
 
-function M.toggle()
-	if state.running then
-		M.stop()
+-- Toggle server (backwards compatible)
+function M.toggle(session_id)
+	local sess_state = state.get_session_state(session_id)
+	if sess_state.running then
+		M.stop(session_id)
 	else
-		M.start()
+		M.start(session_id)
 	end
+end
+
+-- Backwards compatibility aliases
+function M.start_for_session(session_id)
+	return M.start(session_id)
+end
+
+function M.stop_for_session(session_id)
+	return M.stop(session_id)
 end
 
 return M
