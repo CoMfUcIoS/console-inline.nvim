@@ -76,18 +76,30 @@ local function try_json(value)
 	return nil
 end
 
+-- Sanitize text for inline display (remove control chars and collapse whitespace)
+local function sanitize_inline(text)
+	if type(text) ~= "string" then
+		return text
+	end
+	-- Remove control characters and collapse whitespace
+	text = text:gsub("[%c]", " "):gsub("%s+", " ")
+	-- Trim leading/trailing whitespace
+	text = text:match("^%s*(.-)%s*$") or text
+	return text
+end
+
 -- Format a value with type information (for type-aware highlighting)
 local function format_value_with_type(value)
 	local t = type(value)
 	if t == "string" then
 		local json_fmt = try_json(value)
 		if json_fmt then
-			return json_fmt, nil
+			return sanitize_inline(json_fmt), nil
 		end
 		return value, get_type_highlight(value)
 	end
 	if t == "number" or t == "boolean" then
-		return vim.inspect(value), get_type_highlight(value)
+		return sanitize_inline(vim.inspect(value)), get_type_highlight(value)
 	end
 	if t == "nil" then
 		return "nil", "ConsoleInlineNull"
@@ -96,9 +108,9 @@ local function format_value_with_type(value)
 	if ok then
 		local special = detect_special_type(formatted)
 		if special then
-			return formatted, special
+			return sanitize_inline(formatted), special
 		end
-		return formatted, get_type_highlight(value)
+		return sanitize_inline(formatted), get_type_highlight(value)
 	end
 	return tostring(value), nil
 end
