@@ -766,7 +766,7 @@ local function set_line_text(buf, line0, entry, hl)
 	local has_position = current_idx and total_count and total_count > 1
 
 	-- Build virt_text with type-aware highlighting if enabled
-	local virt_text = { { text, hl } }
+	local virt_text
 	if state.opts.type_highlighting ~= false then
 		local format_mod = require("console_inline.format")
 		local ok, segments = pcall(format_mod.inline_typed, entry)

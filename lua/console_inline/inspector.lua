@@ -104,7 +104,7 @@ function M.open()
 end
 
 -- Render entries grouped by severity
-function render_by_severity(lines, entries)
+local function render_by_severity(lines, entries)
 	local severity_order = { "error", "warn", "info", "log" }
 	local entries_by_severity = {}
 
@@ -143,7 +143,7 @@ function render_by_severity(lines, entries)
 end
 
 -- Render entries grouped by file
-function render_by_file(lines, entries)
+local function render_by_file(lines, entries)
 	local entries_by_file = {}
 
 	for _, entry in ipairs(entries) do
@@ -175,14 +175,14 @@ function render_by_file(lines, entries)
 end
 
 -- Render entries flat (no grouping)
-function render_flat(lines, entries)
+local function render_flat(lines, entries)
 	for _, entry in ipairs(entries) do
 		add_entry_line(lines, entry)
 	end
 end
 
 -- Add a single entry line and store metadata
-function add_entry_line(lines, entry)
+local function add_entry_line(lines, entry)
 	local file = entry.file or "<unknown>"
 	local short_file = vim.fn.fnamemodify(file, ":~:.")
 	local line_no = entry.render_line or entry.original_line or entry.line or 0
@@ -209,7 +209,7 @@ function add_entry_line(lines, entry)
 end
 
 -- Setup keymaps for the inspector
-function setup_keys(buf, win, use_float)
+local function setup_keys(buf, win, use_float)
 	local function close_inspector()
 		if use_float then
 			if vim.api.nvim_win_is_valid(win) then

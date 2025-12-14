@@ -40,7 +40,6 @@ return function()
 				end
 			end
 			if count > 0 then
-				message_stats[bufnr] = count
 				total_messages = total_messages + count
 			end
 		end
@@ -90,7 +89,7 @@ return function()
 
 		-- Build status message
 		local lines = {
-			string.format("━━━━━━━━━━━ Console Inline Status ━━━━━━━━━━━"),
+			"━━━━━━━━━━━ Console Inline Status ━━━━━━━━━━━",
 			string.format("Server: %s on %s:%d", running, host, port),
 			string.format("Sockets: %d active", sockets),
 			"",
