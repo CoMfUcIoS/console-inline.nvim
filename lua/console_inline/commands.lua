@@ -32,7 +32,7 @@ return function()
 		-- Message count per buffer
 		local total_messages = 0
 		local severity_count = { log = 0, info = 0, warn = 0, error = 0 }
-		for bufnr, lines_map in pairs(state.extmarks_by_buf_line) do
+		for _, lines_map in pairs(state.extmarks_by_buf_line) do
 			local count = 0
 			for _, extmark_id in pairs(lines_map) do
 				if type(extmark_id) == "number" then

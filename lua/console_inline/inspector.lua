@@ -25,82 +25,31 @@ local inspector_state = {
 	current_grouping = "severity", -- 'severity', 'file', or 'none'
 }
 
--- Create inspector buffer with all messages
-function M.open()
-	-- Get all messages from history
-	local entries = history.entries()
-	if not entries or #entries == 0 then
-		vim.notify("console-inline: no messages in history", vim.log.levels.WARN)
-		return
+-- Add a single entry line and store metadata
+local function add_entry_line(lines, entry)
+	local file = entry.file or "<unknown>"
+	local short_file = vim.fn.fnamemodify(file, ":~:.")
+	local line_no = entry.render_line or entry.original_line or entry.line or 0
+
+	-- Truncate long messages
+	local payload = entry.payload or entry.display or entry.text or ""
+	local max_len = 50
+	if #payload > max_len then
+		payload = payload:sub(1, max_len - 1) .. "…"
 	end
 
-	-- Create a new buffer
-	local buf = vim.api.nvim_create_buf(true, true)
-	if buf == 0 then
-		vim.notify("console-inline: failed to create buffer", vim.log.levels.ERROR)
-		return
-	end
+	-- Store full path and line for later retrieval
+	local display_line = string.format("    %s:%d %s", short_file, line_no, payload)
+	local line_idx = #lines + 1
+	lines[line_idx] = display_line
 
-	-- Build display lines and store entry metadata
-	inspector_state.entries_by_line = {}
-	local lines = { "╔════════════════════════ Console Inspector ════════════════════════╗" }
-	lines[#lines + 1] = "║ Bindings: <CR>=jump, y=yank, c=clear, /=search, g=group, q=quit   ║"
-	lines[#lines + 1] = "╚═══════════════════════════════════════════════════════════════════╝"
-	lines[#lines + 1] = ""
-
-	-- Render entries based on current grouping
-	if inspector_state.current_grouping == "severity" then
-		render_by_severity(lines, entries)
-	elseif inspector_state.current_grouping == "file" then
-		render_by_file(lines, entries)
-	else
-		render_flat(lines, entries)
-	end
-
-	-- Set buffer content
-	vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-	vim.api.nvim_buf_set_option(buf, "modifiable", false)
-	vim.api.nvim_buf_set_option(buf, "buftype", "nofile")
-	vim.api.nvim_buf_set_option(buf, "bufhidden", "wipe")
-
-	-- Create floating window or split
-	local inspector_opts = state.opts.inspector or {}
-	local use_float = inspector_opts.floating ~= false
-
-	local win
-	if use_float then
-		local width = inspector_opts.width or 80
-		local height = inspector_opts.height or 30
-		local row = inspector_opts.row or math.floor((vim.o.lines - height) / 2)
-		local col = inspector_opts.col or math.floor((vim.o.columns - width) / 2)
-
-		win = vim.api.nvim_open_win(buf, true, {
-			relative = "editor",
-			width = width,
-			height = height,
-			row = row,
-			col = col,
-			style = "minimal",
-			border = "rounded",
-			title = " Console Inspector ",
-		})
-
-		if win == 0 then
-			vim.notify("console-inline: failed to create window", vim.log.levels.ERROR)
-			return
-		end
-
-		vim.api.nvim_set_current_win(win)
-	else
-		-- Use split layout
-		vim.cmd("split")
-		vim.api.nvim_set_current_buf(buf)
-		win = vim.api.nvim_get_current_win()
-	end
-
-	-- Setup keymaps
-	setup_keys(buf, win, use_float)
-	vim.notify("Inspector opened. Use q or Esc to close.", vim.log.levels.INFO)
+	-- Store entry metadata indexed by line number
+	inspector_state.entries_by_line[line_idx] = {
+		entry = entry,
+		file = file,
+		line = line_no,
+		short_file = short_file,
+	}
 end
 
 -- Render entries grouped by severity
@@ -179,33 +128,6 @@ local function render_flat(lines, entries)
 	for _, entry in ipairs(entries) do
 		add_entry_line(lines, entry)
 	end
-end
-
--- Add a single entry line and store metadata
-local function add_entry_line(lines, entry)
-	local file = entry.file or "<unknown>"
-	local short_file = vim.fn.fnamemodify(file, ":~:.")
-	local line_no = entry.render_line or entry.original_line or entry.line or 0
-
-	-- Truncate long messages
-	local payload = entry.payload or entry.display or entry.text or ""
-	local max_len = 50
-	if #payload > max_len then
-		payload = payload:sub(1, max_len - 1) .. "…"
-	end
-
-	-- Store full path and line for later retrieval
-	local display_line = string.format("    %s:%d %s", short_file, line_no, payload)
-	local line_idx = #lines + 1
-	lines[line_idx] = display_line
-
-	-- Store entry metadata indexed by line number
-	inspector_state.entries_by_line[line_idx] = {
-		entry = entry,
-		file = file,
-		line = line_no,
-		short_file = short_file,
-	}
 end
 
 -- Setup keymaps for the inspector
@@ -323,6 +245,84 @@ local function setup_keys(buf, win, use_float)
 	-- Close/quit
 	vim.keymap.set("n", "q", close_inspector, { buffer = buf, silent = true })
 	vim.keymap.set("n", "<Esc>", close_inspector, { buffer = buf, silent = true })
+end
+
+-- Create inspector buffer with all messages
+function M.open()
+	-- Get all messages from history
+	local entries = history.entries()
+	if not entries or #entries == 0 then
+		vim.notify("console-inline: no messages in history", vim.log.levels.WARN)
+		return
+	end
+
+	-- Create a new buffer
+	local buf = vim.api.nvim_create_buf(true, true)
+	if buf == 0 then
+		vim.notify("console-inline: failed to create buffer", vim.log.levels.ERROR)
+		return
+	end
+
+	-- Build display lines and store entry metadata
+	inspector_state.entries_by_line = {}
+	local lines = { "╔════════════════════════ Console Inspector ════════════════════════╗" }
+	lines[#lines + 1] = "║ Bindings: <CR>=jump, y=yank, c=clear, /=search, g=group, q=quit   ║"
+	lines[#lines + 1] = "╚═══════════════════════════════════════════════════════════════════╝"
+	lines[#lines + 1] = ""
+
+	-- Render entries based on current grouping
+	if inspector_state.current_grouping == "severity" then
+		render_by_severity(lines, entries)
+	elseif inspector_state.current_grouping == "file" then
+		render_by_file(lines, entries)
+	else
+		render_flat(lines, entries)
+	end
+
+	-- Set buffer content
+	vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+	vim.api.nvim_buf_set_option(buf, "modifiable", false)
+	vim.api.nvim_buf_set_option(buf, "buftype", "nofile")
+	vim.api.nvim_buf_set_option(buf, "bufhidden", "wipe")
+
+	-- Create floating window or split
+	local inspector_opts = state.opts.inspector or {}
+	local use_float = inspector_opts.floating ~= false
+
+	local win
+	if use_float then
+		local width = inspector_opts.width or 80
+		local height = inspector_opts.height or 30
+		local row = inspector_opts.row or math.floor((vim.o.lines - height) / 2)
+		local col = inspector_opts.col or math.floor((vim.o.columns - width) / 2)
+
+		win = vim.api.nvim_open_win(buf, true, {
+			relative = "editor",
+			width = width,
+			height = height,
+			row = row,
+			col = col,
+			style = "minimal",
+			border = "rounded",
+			title = " Console Inspector ",
+		})
+
+		if win == 0 then
+			vim.notify("console-inline: failed to create window", vim.log.levels.ERROR)
+			return
+		end
+
+		vim.api.nvim_set_current_win(win)
+	else
+		-- Use split layout
+		vim.cmd("split")
+		vim.api.nvim_set_current_buf(buf)
+		win = vim.api.nvim_get_current_win()
+	end
+
+	-- Setup keymaps
+	setup_keys(buf, win, use_float)
+	vim.notify("Inspector opened. Use q or Esc to close.", vim.log.levels.INFO)
 end
 
 return M
