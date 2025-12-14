@@ -15,7 +15,7 @@
 -- along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 local M = {}
-local unpack = unpack or table.unpack
+local unpack = _G.unpack --luacheck: ignore
 
 -- Detect the type of a value and return its highlight group
 local function get_type_highlight(value)
@@ -156,8 +156,6 @@ local function try_apply_format(fmt_string, args)
 		for i, arg in ipairs(args) do
 			if type(arg) == "string" then
 				format_args[i] = arg
-			elseif type(arg) == "number" then
-				format_args[i] = tostring(arg)
 			elseif arg == nil then
 				format_args[i] = "nil"
 			else
