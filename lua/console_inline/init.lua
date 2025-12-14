@@ -170,6 +170,30 @@ function M.setup(opts)
 		return
 	end
 	require("console_inline.commands")()
+
+	-- Initialize sessions if enabled
+	if state.opts.sessions_enabled then
+		local sessions_mod = require("console_inline.sessions")
+		sessions_mod.load_persisted()
+		sessions_mod.cleanup_stale_sessions(30)
+
+		-- Auto-create session for current workspace if none exists
+		local current_root = vim.fn.getcwd()
+		if not sessions_mod.get_by_root(current_root) then
+			local session_id = sessions_mod.create(current_root)
+			if session_id then
+				sessions_mod.switch(session_id)
+				sessions_mod.persist()
+			end
+		else
+			-- Switch to existing session for this root
+			local sess = sessions_mod.get_by_root(current_root)
+			if sess then
+				sessions_mod.switch(sess.id)
+			end
+		end
+	end
+
 	-- Optional Tree-sitter integration (opt-in)
 	if state.opts.use_treesitter then
 		local ok_ts, ts_mod = pcall(require, "console_inline.treesitter")
@@ -182,6 +206,7 @@ function M.setup(opts)
 			log.debug("treesitter module missing or activate not callable")
 		end
 	end
+
 	if state.opts.autostart ~= false then
 		vim.api.nvim_create_autocmd("VimEnter", {
 			once = true,
