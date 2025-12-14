@@ -136,6 +136,41 @@ local function append_tagged(lines, tag, text)
 	vim.list_extend(lines, pieces)
 end
 
+-- Detect and apply printf-style formatting (e.g., "%s: %s" with args)
+-- Returns the formatted string or nil if not a format string
+local function try_apply_format(fmt_string, args)
+	if type(fmt_string) ~= "string" then
+		return nil
+	end
+	if not fmt_string:find("%%") then
+		return nil
+	end
+	if not args or #args == 0 then
+		return nil
+	end
+	local ok, result = pcall(function()
+		-- Prepare arguments for string.format
+		-- Convert non-string values to their string representation
+		local format_args = {}
+		for i, arg in ipairs(args) do
+			if type(arg) == "string" then
+				format_args[i] = arg
+			elseif type(arg) == "number" then
+				format_args[i] = tostring(arg)
+			elseif arg == nil then
+				format_args[i] = "nil"
+			else
+				format_args[i] = tostring(arg)
+			end
+		end
+		return string.format(fmt_string, unpack(format_args))
+	end)
+	if ok and result then
+		return result
+	end
+	return nil
+end
+
 function M.default(entry)
 	if not entry then
 		return { "<no entry>" }
@@ -165,9 +200,27 @@ function M.default(entry)
 		local payload = entry.payload or entry.text or ""
 		append_tagged(lines, "", format_value(payload))
 	else
-		for idx, value in ipairs(args) do
-			local formatted = format_value(value)
-			append_tagged(lines, string.format("[%d] ", idx), formatted)
+		-- Check if this looks like a printf-style format string
+		-- (first arg is a string with % placeholders, followed by values)
+		local first_arg = args[1]
+		if type(first_arg) == "string" and first_arg:find("%%") and #args > 1 then
+			-- Try to apply printf-style formatting
+			local formatted = try_apply_format(first_arg, { unpack(args, 2) })
+			if formatted then
+				append_tagged(lines, "", format_value(formatted))
+			else
+				-- Format string parsing failed, show all args individually
+				for idx, value in ipairs(args) do
+					local formatted_val = format_value(value)
+					append_tagged(lines, string.format("[%d] ", idx), formatted_val)
+				end
+			end
+		else
+			-- Regular arguments (not printf-style)
+			for idx, value in ipairs(args) do
+				local formatted = format_value(value)
+				append_tagged(lines, string.format("[%d] ", idx), formatted)
+			end
 		end
 	end
 	local trace = entry.trace or {}
@@ -216,13 +269,35 @@ function M.inline_typed(entry)
 		local fmt, hl = format_value_with_type(payload)
 		segments[#segments + 1] = { text = fmt, hl = hl }
 	else
-		for idx, value in ipairs(args) do
-			-- Add space separator between arguments
-			if idx > 1 then
-				segments[#segments + 1] = { text = " ", hl = nil }
+		-- Check if this looks like a printf-style format string
+		-- (first arg is a string with % placeholders, followed by values)
+		local first_arg = args[1]
+		if type(first_arg) == "string" and first_arg:find("%%") and #args > 1 then
+			-- Try to apply printf-style formatting
+			local formatted = try_apply_format(first_arg, { unpack(args, 2) })
+			if formatted then
+				local fmt_hl, hl = format_value_with_type(formatted)
+				segments[#segments + 1] = { text = fmt_hl, hl = hl }
+			else
+				-- Format string parsing failed, fall back to showing all args
+				for idx, value in ipairs(args) do
+					if idx > 1 then
+						segments[#segments + 1] = { text = " ", hl = nil }
+					end
+					local formatted_val, hl_val = format_value_with_type(value)
+					segments[#segments + 1] = { text = formatted_val, hl = hl_val }
+				end
 			end
-			local formatted, hl = format_value_with_type(value)
-			segments[#segments + 1] = { text = formatted, hl = hl }
+		else
+			-- Regular arguments (not printf-style)
+			for idx, value in ipairs(args) do
+				-- Add space separator between arguments
+				if idx > 1 then
+					segments[#segments + 1] = { text = " ", hl = nil }
+				end
+				local formatted, hl = format_value_with_type(value)
+				segments[#segments + 1] = { text = formatted, hl = hl }
+			end
 		end
 	end
 
