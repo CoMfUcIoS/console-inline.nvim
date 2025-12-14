@@ -15,6 +15,7 @@
 -- along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 local M = {}
+local unpack = unpack or table.unpack
 
 -- Detect the type of a value and return its highlight group
 local function get_type_highlight(value)
