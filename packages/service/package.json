@@ -15,7 +15,8 @@
   ],
   "scripts": {
     "build": "tsc",
-    "prepare": "npm run build"
+    "prepare": "npm run build",
+    "postinstall": "node ./inject-vite-hook.js"
   },
   "author": "",
   "license": "GPL-3.0-or-later",

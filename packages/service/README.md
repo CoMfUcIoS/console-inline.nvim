@@ -20,9 +20,14 @@ Timers started with `console.time` and completed via `console.timeEnd`/`console.
 npm install @console-inline/service
 ```
 
+### Vite auto-injection
+
+When you install this package, it automatically patches your local Vite CLI to inject the console-inline client into all dev servers. No manual code changes are needed—just install and run Vite as usual.
+
 Use any bundler/runtime that understands ESM (Node 16+, Vite, Next.js, etc.).
 
 ## Quick start
+
 
 ### Node.js / CLI
 
